@@ -1,0 +1,103 @@
+<h1>
+<p>Understanding the difference between L4 and L7 load balancers is key to designing robust systems. Here are popular examples of each, categorized by cloud providers and standalone software.</p>
+</h1>
+<hr>
+<h3 id="layer-4-l4-load-balancers">Layer 4 (L4) Load Balancers</h3>
+<p>L4 load balancers operate at the <strong>Transport Layer</strong>. They are &quot;dumber&quot; but incredibly fast. They look at TCP/UDP headers (source/destination IP addresses and ports) and forward packets without inspecting the content.</p>
+<p><strong>Key Characteristics:</strong></p>
+<ul>
+<li><strong>Decision Logic:</strong> Based on IP address and TCP/UDP port.</li>
+<li><strong>Content Awareness:</strong> None. A packet is just a packet.</li>
+<li><strong>Performance:</strong> Very high throughput, low latency.</li>
+<li><strong>Use Cases:</strong> High-performance scenarios, non-HTTP traffic (e.g., databases, real-time gaming servers, MQTT), or simple TCP passthrough where the backend handles TLS.</li>
+</ul>
+<h4 id="popular-examples-">Popular Examples:</h4>
+<p><strong>1. Cloud Providers:</strong></p>
+<ul>
+<li><strong>AWS Network Load Balancer (NLB):</strong> The classic high-performance L4 load balancer on AWS. It can handle millions of requests per second with ultra-low latency. It is also often used for TLS termination now, which technically is an L7 function but is a feature of this L4 product.</li>
+<li><strong>Google Cloud TCP/SSL Proxy Load Balancer:</strong> This is Google&#39;s primary offering for L4 load balancing for TCP traffic. The &quot;SSL Proxy&quot; part allows it to offload SSL for non-HTTPS traffic.</li>
+<li><strong>Google Cloud Internal TCP/UDP Load Balancer:</strong> Used for load balancing traffic <em>within</em> a GCP Virtual Private Cloud (VPC).</li>
+<li><strong>Azure Load Balancer:</strong> The standard L4 load balancer in Azure, working with TCP and UDP traffic.</li>
+</ul>
+<p><strong>2. Standalone Software / Kubernetes:</strong></p>
+<ul>
+<li><strong>IPVS (IP Virtual Server):</strong> Built into the Linux kernel, IPVS is the engine behind many L4 load balancing solutions, including <code>kube-proxy</code> in Kubernetes in IPVS mode. It&#39;s extremely fast.</li>
+<li><strong>HAProxy (in TCP mode):</strong> While famous for its L7 capabilities, HAProxy has a highly performant TCP mode where it functions as a pure L4 load balancer.</li>
+<li><strong>Nginx (in TCP/UDP load balancing mode):</strong> Similar to HAProxy, Nginx can be configured to load balance generic TCP or UDP streams.</li>
+</ul>
+<hr>
+<h3 id="layer-7-l7-load-balancers">Layer 7 (L7) Load Balancers</h3>
+<p>L7 load balancers operate at the <strong>Application Layer</strong>. They are &quot;smarter&quot; because they can inspect the content of the packets, like HTTP headers, URLs, cookies, and even the message body.</p>
+<p><strong>Key Characteristics:</strong></p>
+<ul>
+<li><strong>Decision Logic:</strong> Based on application-level data (e.g., URL path <code>/api/v1</code> vs. <code>/images</code>, HTTP headers, cookies).</li>
+<li><strong>Content Awareness:</strong> Full. It can read and modify HTTP requests and responses.</li>
+<li><strong>Features:</strong> TLS termination, URL-based routing, session affinity (sticky sessions), request/response modification, Gzip compression, etc.</li>
+<li><strong>Use Cases:</strong> Almost all modern web applications and APIs.</li>
+</ul>
+<h4 id="popular-examples-">Popular Examples:</h4>
+<p><strong>1. Cloud Providers:</strong></p>
+<ul>
+<li><strong>AWS Application Load Balancer (ALB):</strong> The de facto standard for L7 load balancing on AWS. It&#39;s feature-rich, supporting path-based routing, host-based routing, and deep integration with other AWS services like ECS and Lambda.</li>
+<li><strong>Google Cloud External/Internal HTTPS Load Balancer:</strong> Google&#39;s powerful, globally-distributed L7 load balancer. It provides a single global IP address, integrates with Google Cloud Armor for security and Cloud CDN for caching.</li>
+<li><strong>Azure Application Gateway:</strong> Azure&#39;s primary L7 load balancer, offering features like a Web Application Firewall (WAF), URL-based routing, and SSL termination.</li>
+</ul>
+<p><strong>2. Standalone Software / Ingress Controllers:</strong></p>
+<ul>
+<li><strong>Nginx:</strong> Perhaps the most famous L7 reverse proxy and load balancer in the world. It is the engine behind the most popular Kubernetes Ingress Controller.</li>
+<li><strong>HAProxy:</strong> Highly respected for its performance, reliability, and advanced L7 features like sophisticated ACLs (Access Control Lists).</li>
+<li><strong>Envoy:</strong> A modern, high-performance L7 proxy designed for cloud-native applications. It is the foundation of many service mesh technologies like Istio.</li>
+<li><strong>Traefik:</strong> A cloud-native edge router that is very popular as a Kubernetes Ingress Controller because it can automatically discover services and configure itself.</li>
+</ul>
+<h3 id="summary-table">Summary Table</h3>
+<table>
+<thead>
+<tr>
+<th style="text-align:left"></th>
+<th style="text-align:left">Layer 4 (L4)</th>
+<th style="text-align:left">Layer 7 (L7)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left"><strong>Operates at</strong></td>
+<td style="text-align:left">Transport Layer (TCP/UDP)</td>
+<td style="text-align:left">Application Layer (HTTP/S)</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>Decisions Based On</strong></td>
+<td style="text-align:left">IP Address &amp; Port</td>
+<td style="text-align:left">URL Path, Hostname, Headers, Cookies</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>Primary Advantage</strong></td>
+<td style="text-align:left">Speed &amp; Simplicity</td>
+<td style="text-align:left">Intelligence &amp; Flexibility</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>Typical Use Case</strong></td>
+<td style="text-align:left">High-performance TCP passthrough</td>
+<td style="text-align:left">Web applications, APIs, microservices</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>AWS Example</strong></td>
+<td style="text-align:left">Network Load Balancer (NLB)</td>
+<td style="text-align:left">Application Load Balancer (ALB)</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>GCP Example</strong></td>
+<td style="text-align:left">TCP Proxy Load Balancer</td>
+<td style="text-align:left">External HTTPS Load Balancer</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>Azure Example</strong></td>
+<td style="text-align:left">Azure Load Balancer</td>
+<td style="text-align:left">Azure Application Gateway</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>Open Source Example</strong></td>
+<td style="text-align:left">IPVS, HAProxy (TCP mode)</td>
+<td style="text-align:left">Nginx, HAProxy, Envoy, Traefik</td>
+</tr>
+</tbody>
+</table>

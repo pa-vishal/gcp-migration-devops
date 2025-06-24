@@ -1,5 +1,21 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GCP Migration with SA Long-Lived Keys</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/github-markdown-css/5.2.0/github-markdown-light.min.css">
+  <style>
+    body {
+      max-width: 960px;
+      margin: 2rem auto;
+      padding: 2rem;
+    }
+  </style>
+</head>
+<body class="markdown-body">
 <h1>
-<p>When level 4 / network load balancer is used, it offload TLS. If the backend application is a java spring boot application , how it behaves in these two cases- when TLS offloading happens as a result of use of level 4 load balancer and when not used? For example, does it automatically knows whether TLS offloading has happened  vs not happened?</p>
+  <p>When level 4 / network load balancer is used, it offload TLS. If the backend application is a java spring boot application , how it behaves in these two cases- when TLS offloading happens as a result of use of level 4 load balancer and when not used? For example, does it automatically knows whether TLS offloading has happened  vs not happened?</p>
 </h1>
 <p>Excellent question. This gets to the heart of how modern web applications interact with infrastructure, and it&#39;s a critical concept for any backend developer to understand.</p>
 <p>The short answer is: No, the Spring Boot application does not automatically know.</p>
@@ -75,3 +91,6 @@ Key Mechanism    Trusts X-Forwarded-* headers.    Directly handles TLS handshake
 Pros    Standard practice. Centralized cert management, less CPU load on app servers, simplified app config.    Simpler infrastructure (LB is dumber), end-to-end encryption to the pod/instance level.
 Cons    Traffic is unencrypted between LB and app. Requires careful network security (e.g., VPC).    Complex certificate management (must deploy certs to all app instances), higher app CPU load.</p>
 <p>Conclusion: For most modern, scalable applications, Case 1 (TLS Offloading) is the standard and recommended approach. It simplifies application logic and centralizes the complex and critical task of certificate management at the infrastructure level.</p>
+
+</body>
+</html>

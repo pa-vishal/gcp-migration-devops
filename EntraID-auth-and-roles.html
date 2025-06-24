@@ -4,7 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Entra ID Authentication and RBAC Flow</title>
-	<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/github-markdown-css/5.2.0/github-markdown-light.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
     <script>
         mermaid.initialize({ startOnLoad: true });
     </script>
@@ -14,7 +15,7 @@
         pre { background: #f4f4f4; padding: 10px; border-radius: 5px; overflow-x: auto; }
     </style>
 </head>
-<body>
+<body class="markdown-body">
     <h3>Follow-up - Understand the end-to-end flow from setting up an application with specific roles in  <div style="color:blue;font-family: Arial, sans-serif; margin: 26px;"> Microsoft Entra ID (formerly Azure AD) </div>  and how that application uses this setup for both authenticating users and authorizing their access based on those roles.</h3>
     <p>This involves a few more pieces than just basic authentication, specifically the "App Roles" feature for role-based access control (RBAC).</p>
     <p>Here's a flow diagram and a detailed explanation:</p>

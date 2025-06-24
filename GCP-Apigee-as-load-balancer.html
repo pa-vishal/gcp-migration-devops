@@ -1,5 +1,21 @@
-<h1>
-<p>Does GCP Apigee also act as load balancer? if so what type of load balancer it is?</p>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GCP Migration with SA Long-Lived Keys</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/github-markdown-css/5.2.0/github-markdown-light.min.css">
+  <style>
+    body {
+      max-width: 960px;
+      margin: 2rem auto;
+      padding: 2rem;
+    }
+  </style>
+</head>
+<body class="markdown-body">
+  <h1>
+    <p>Does GCP Apigee also act as load balancer? if so what type of load balancer it is?</p>
 </h1>
 <p>That&#39;s a very sharp question because the line between an API Gateway and a Load Balancer can be blurry.</p>
 <p>The answer is: <strong>Yes, Apigee performs load balancing, but it is fundamentally an L7 (Application Layer) device, not a traditional L4 load balancer.</strong></p>
@@ -85,3 +101,6 @@ It operates on the HTTP request <em>after</em> it has been processed. It&#39;s n
 <li><strong>Backend Service:</strong> The application receives the request and processes the business logic.</li>
 </ol>
 <p><strong>In summary:</strong> Apigee is a powerful L7 device that includes sophisticated load balancing as part of its feature set for managing traffic to backend API servers. However, it is almost always deployed <em>behind</em> a dedicated cloud load balancer in a production environment.</p>
+
+</body>
+</html>

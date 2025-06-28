@@ -118,5 +118,32 @@
 </tbody>
 </table>
 
+ 
+
+<div>
+<h3 id="summary-table">Load Balancers In Google Cloud Platform</h3>
+<p>In Google Cloud Platform (GCP), the primary Layer 4 load balancers are the <strong>Network Load Balancers</strong>. </p>
+<p>These can be further categorized into:</p>
+<ul>
+<li><p><strong>Passthrough Network Load Balancers:</strong> These are regional Layer 4 load balancers that distribute traffic to backends in the same region as the load balancer. They are <em>not</em> proxies, meaning packets reach backend VMs with original source and destination IPs, protocols, and ports unchanged. They support protocols like TCP, UDP, ESP, GRE, ICMP, and ICMPv6.</p>
+</li>
+<li><p><strong>Proxy Network Load Balancers:</strong> These are Layer 4 reverse proxy load balancers that distribute TCP traffic to virtual machine (VM) instances in your Google Cloud VPC network. Traffic is terminated at the load balancing layer and then forwarded to the closest available backend. They offer options for:</p>
+<ul>
+<li><strong>External Proxy Network Load Balancers:</strong> Distribute traffic from the internet to your Google Cloud backends.</li>
+<li><strong>Internal Proxy Network Load Balancers:</strong> Distribute internal TCP service traffic behind a regional internal IP address, accessible only within the same VPC network or connected networks.</li>
+</ul>
+</li>
+</ul>
+<p><strong>Key characteristics of GCP&#39;s Layer 4 load balancers:</strong></p>
+<ul>
+<li><strong>Operate at the Network Layer (Layer 4):</strong> They make routing decisions based on IP addresses and ports, without inspecting the content of the packets.</li>
+<li><strong>Support various protocols:</strong> Primarily TCP and UDP, but Passthrough Network Load Balancers also support other IP protocols like ESP, GRE, ICMP, and ICMPv6.</li>
+<li><strong>Scalable and Fault-Tolerant:</strong> They can handle large volumes of traffic and automatically distribute it to healthy instances.</li>
+<li><strong>No Pre-warming:</strong> They don&#39;t require pre-warming, meaning they can handle sudden spikes in traffic without issues.</li>
+<li><strong>Health Checks:</strong> They use health checks to ensure traffic is only sent to healthy backend instances.</li>
+</ul>
+<p>When choosing a Layer 4 load balancer in GCP, consider your traffic type (TCP, UDP, or other IP protocols), whether you need proxying capabilities (like TLS offload), and if your traffic is internal or external.</p>
+
+</div>
 </body>
 </html>

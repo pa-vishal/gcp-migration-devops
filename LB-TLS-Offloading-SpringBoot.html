@@ -13,11 +13,21 @@
       margin: 2rem auto;
       padding: 2rem;
     }
+    .summary-block {
+      background-color: #f0f7e6;
+      border-left: 5px solid #4CAF50;
+      padding: 10px;
+      margin: 20px 0;
+      border-radius: 4px;
+    }
   </style>
 </head>
 
 <body class="markdown-body">
   <h1>How Does TLS Offloading Work</h1>
+  <div class="summary-block">
+    This page explains TLS offloading, how load balancers handle TLS termination, and the implications for backend applications like Java Spring Boot, including configuration tips for secure and efficient deployments.
+  </div>
   <p><strong>TLS (Transport Layer Security)</strong>, formerly known as SSL (Secure Sockets Layer), offloading is a
     technique used in web infrastructure to move the computationally intensive task of encrypting and decrypting TLS
     traffic away from backend application servers to a dedicated device, typically a load balancer or an Application

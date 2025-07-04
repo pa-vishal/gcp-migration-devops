@@ -13,6 +13,13 @@
       margin: 2rem auto;
       padding: 2rem;
     }
+    .summary-block {
+      background-color: #f0f7e6;
+      border-left: 5px solid #4CAF50;
+      padding: 10px;
+      margin: 20px 0;
+      border-radius: 4px;
+    }
   </style>
 </head>
 
@@ -20,6 +27,9 @@
   <h1>
     <p>Does GCP Apigee also act as load balancer? if so what type of load balancer it is?</p>
   </h1>
+  <div class="summary-block">
+    This page explores how GCP Apigee functions as an L7 (application layer) load balancer within API management, compares it to traditional load balancers, and details how certificates are managed for secure API traffic.
+  </div>
   <p>That&#39;s a very sharp question because the line between an API Gateway and a Load Balancer can be blurry.</p>
   <p>The answer is: <strong>Yes, Apigee performs load balancing, but it is fundamentally an L7 (Application Layer)
       device, not a traditional L4 load balancer.</strong></p>

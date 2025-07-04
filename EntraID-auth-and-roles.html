@@ -17,10 +17,20 @@
         }
         h1, h2, h3 { color: #333; }
         pre { background: #f4f4f4; padding: 10px; border-radius: 5px; overflow-x: auto; }
+        .summary-block {
+            background-color: #f0f7e6;
+            border-left: 5px solid #4CAF50;
+            padding: 10px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
     </style>
 </head>
 <body class="markdown-body">
     <h1>Microsoft Entra ID (formerly Azure AD)</h1>
+    <div class="summary-block">
+        This page explains how to configure Microsoft Entra ID (formerly Azure AD) for application authentication and role-based access control (RBAC), covering app registration, role assignment, and secure user authorization flows.
+    </div>
     <h3>Follow-up - Understand the end-to-end flow from setting up an application with specific roles in Microsoft Entra ID and how that application uses this setup for both authenticating users and authorizing their access based on those roles.</h3>
     <p>This involves a few more pieces than just basic authentication, specifically the "App Roles" feature for role-based access control (RBAC).</p>
     <p>Here's a flow diagram and a detailed explanation:</p>

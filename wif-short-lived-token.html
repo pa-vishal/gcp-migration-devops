@@ -13,11 +13,21 @@
       margin: 2rem auto;
       padding: 2rem;
     }
+    .summary-block {
+      background-color: #f0f7e6;
+      border-left: 5px solid #4CAF50;
+      padding: 10px;
+      margin: 20px 0;
+      border-radius: 4px;
+    }
   </style>
 </head>
 
 <body class="markdown-body">
   <h1>GCP Migration with WIF Short-Lived Token</h1>
+  <div class="summary-block">
+    This page explains how to migrate to GCP using Workload Identity Federation (WIF) for secure, short-lived authentication tokens, replacing long-lived keys in CI/CD pipelines and improving cloud security.
+  </div>
   <p>Pivoting to <strong>Workload Identity Federation (WIF)</strong> for GCP authentication is a significant security
     enhancement. It allows your Tekton pods, running with a Kubernetes Service Account (K8s SA) in OpenShift, to
     impersonate a Google Cloud Service Account (GCP SA) <em>without</em> needing to manage or distribute long-lived GCP

@@ -1,10 +1,12 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>GCP Migration with WIF Short-Lived Token</title>
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/github-markdown-css/5.2.0/github-markdown-light.min.css">
+  <link rel="stylesheet"
+    href="https://cdnjs.cloudflare.com/ajax/libs/github-markdown-css/5.2.0/github-markdown-light.min.css">
   <style>
     body {
       max-width: 960px;
@@ -13,82 +15,116 @@
     }
   </style>
 </head>
+
 <body class="markdown-body">
-<h1>GCP Migration with WIF Short-Lived Token</h1>
-<p>Pivoting to <strong>Workload Identity Federation (WIF)</strong> for GCP authentication is a significant security enhancement. It allows your Tekton pods, running with a Kubernetes Service Account (K8s SA) in OpenShift, to impersonate a Google Cloud Service Account (GCP SA) <em>without</em> needing to manage or distribute long-lived GCP SA keys. This aligns perfectly with best practices for cloud-native security.</p>
-<p>Let's revisit your plan, adapting it for Workload Identity Federation:</p>
-<p><strong>Overall Architecture Vision (Updated for WIF):</strong></p>
-<ol>
-<li><strong>Developers:</strong> Work in a dedicated GitHub repository containing Terraform code.</li>
-<li><strong>GitHub:</strong> Hosts the Terraform code. Webhooks trigger Tekton on PR events and specific comments/labels for approval.</li>
-<li><strong>OpenShift:</strong> Hosts Tekton Pipelines. An <code>EventListener</code> service receives GitHub webhooks.
-<ul>
-<li><strong>Key Change:</strong> Tekton pods will run under a specific K8s Service Account. This K8s SA will be configured to impersonate a GCP SA via Workload Identity Federation.</li>
-</ul></li>
-<li><strong>Tekton:</strong>
-<ul>
-<li>Responds to PR creation/updates by running a <code>Pipeline</code> that performs <code>terraform init</code> and <code>terraform plan</code>.</li>
-<li>Responds to an approval mechanism by running a <code>Pipeline</code> that performs <code>terraform apply</code>.</li>
-</ul></li>
-<li><strong>GCP:</strong> The target environment. Tekton will authenticate to GCP by having its K8s SA impersonate a dedicated GCP SA (via WIF) to provision resources.</li>
-</ol>
-<hr/>
-<p>Here's the step-by-step guidance with WIF integrated:</p>
-<h3>1. Create a GCP Project for the Team</h3>
-<p><strong>Technical Details:</strong></p>
-<ol>
-<li><strong>Project Creation:</strong> (Same as before)
-<ul>
-<li>Via GCP Console, <code>gcloud</code> CLI, or Terraform.</li>
-<li><code>gcloud projects create YOUR_PROJECT_ID --name="Your Project Name" --set-as-default</code></li>
-<li>Associate a billing account: <code>gcloud beta billing projects link YOUR_PROJECT_ID --billing-account=YOUR_BILLING_ACCOUNT_ID</code></li>
-</ul></li>
-<li><strong>Enable Necessary APIs:</strong> (Same as before)
-<ul>
-<li>Compute Engine, Cloud Resource Manager, IAM, Service Usage, Cloud Storage, etc.</li>
-<li><code>gcloud services enable compute.googleapis.com cloudresourcemanager.googleapis.com iam.googleapis.com serviceusage.googleapis.com storage.googleapis.com identitytoolkit.googleapis.com sts.googleapis.com --project=YOUR_PROJECT_ID</code>
-<ul>
-<li><strong>Added:</strong> <code>identitytoolkit.googleapis.com</code> and <code>sts.googleapis.com</code> (Security Token Service API) are essential for Workload Identity Federation.</li>
-</ul></li>
-</ul></li>
-<li><strong>Terraform State Backend (GCS Bucket):</strong> (Same as before)
-<ul>
-<li>Create a GCS bucket, ideally in a central "TF state" project.</li>
-<li><code>gsutil mb -p YOUR_PROJECT_ID_FOR_STATE -l YOUR_REGION gs://your-terraform-state-bucket-name</code></li>
-<li>Enable versioning: <code>gsutil versioning set on gs://your-terraform-state-bucket-name</code></li>
-</ul></li>
-</ol>
-<p><strong>Security Details (Focus on WIF):</strong></p>
-<ol>
-<li><strong>GCP Service Account for Tekton (GCP SA):</strong>
-<ul>
-<li>Create a dedicated GCP SA that Tekton will impersonate. Let's call it <code>tekton-wif-terraform-sa@YOUR_PROJECT_ID.iam.gserviceaccount.com</code>.</li>
-<li><code>gcloud iam service-accounts create tekton-wif-terraform-sa --display-name="Tekton WIF Terraform SA" --project=YOUR_PROJECT_ID</code></li>
-<li><strong>Crucially: You generally do NOT need to create or download JSON keys for this GCP SA if Tekton will exclusively use WIF.</strong> The whole point of WIF is to avoid these keys for your CI/CD system.</li>
-</ul></li>
-<li><strong>IAM Roles for the GCP SA (<code>tekton-wif-terraform-sa</code>):</strong>
-<ul>
-<li>This GCP SA needs permissions to manage resources in <code>YOUR_PROJECT_ID</code> and access the Terraform state bucket.</li>
-<li>Grant project-level role:
-<code>gcloud projects add-iam-policy-binding YOUR_PROJECT_ID --member="serviceAccount:tekton-wif-terraform-sa@YOUR_PROJECT_ID.iam.gserviceaccount.com" --role="roles/owner"</code> (or more granular roles like <code>roles/compute.admin</code>, <code>roles/storage.admin</code>).</li>
-<li>Grant bucket-level role (if state bucket is <code>gs://your-terraform-state-bucket-name</code> in project <code>YOUR_PROJECT_ID_FOR_STATE</code>):
-<code>gsutil iam ch serviceAccount:tekton-wif-terraform-sa@YOUR_PROJECT_ID.iam.gserviceaccount.com:objectAdmin gs://your-terraform-state-bucket-name</code></li>
-</ul></li>
-<li><strong>Principle of Least Privilege (PoLP):</strong> Always applies. Grant only necessary permissions to <code>tekton-wif-terraform-sa</code>.</li>
-</ol>
-<p><strong>Integration Details:</strong></p>
-<ul>
-<li>The GCP Project ID and GCS bucket name for state are in <code>backend.tf</code>.</li>
-<li>Authentication will be handled by WIF, configured in a later step.</li>
-</ul>
-<hr/>
-<h3>2. Developers Use Terraform Script in a GitHub Repo</h3>
-<p><strong>(This section remains largely the same as before, as it deals with the Terraform code itself, not the CI/CD authentication mechanism.)</strong></p>
-<p><strong>Technical Details:</strong></p>
-<ol>
-<li><strong>Repository Setup:</strong> Standard Terraform project structure (<code>main.tf</code>, <code>variables.tf</code>, etc.).</li>
-<li><strong><code>backend.tf</code> example:</strong>
-<code>terraform
+  <h1>GCP Migration with WIF Short-Lived Token</h1>
+  <p>Pivoting to <strong>Workload Identity Federation (WIF)</strong> for GCP authentication is a significant security
+    enhancement. It allows your Tekton pods, running with a Kubernetes Service Account (K8s SA) in OpenShift, to
+    impersonate a Google Cloud Service Account (GCP SA) <em>without</em> needing to manage or distribute long-lived GCP
+    SA keys. This aligns perfectly with best practices for cloud-native security.</p>
+  <p>Let's revisit your plan, adapting it for Workload Identity Federation:</p>
+  <p><strong>Overall Architecture Vision (Updated for WIF):</strong></p>
+  <ol>
+    <li><strong>Developers:</strong> Work in a dedicated GitHub repository containing Terraform code.</li>
+    <li><strong>GitHub:</strong> Hosts the Terraform code. Webhooks trigger Tekton on PR events and specific
+      comments/labels for approval.</li>
+    <li><strong>OpenShift:</strong> Hosts Tekton Pipelines. An <code>EventListener</code> service receives GitHub
+      webhooks.
+      <ul>
+        <li><strong>Key Change:</strong> Tekton pods will run under a specific K8s Service Account. This K8s SA will be
+          configured to impersonate a GCP SA via Workload Identity Federation.</li>
+      </ul>
+    </li>
+    <li><strong>Tekton:</strong>
+      <ul>
+        <li>Responds to PR creation/updates by running a <code>Pipeline</code> that performs <code>terraform init</code>
+          and <code>terraform plan</code>.</li>
+        <li>Responds to an approval mechanism by running a <code>Pipeline</code> that performs
+          <code>terraform apply</code>.</li>
+      </ul>
+    </li>
+    <li><strong>GCP:</strong> The target environment. Tekton will authenticate to GCP by having its K8s SA impersonate a
+      dedicated GCP SA (via WIF) to provision resources.</li>
+  </ol>
+  <hr />
+  <p>Here's the step-by-step guidance with WIF integrated:</p>
+  <h3>1. Create a GCP Project for the Team</h3>
+  <p><strong>Technical Details:</strong></p>
+  <ol>
+    <li><strong>Project Creation:</strong> (Same as before)
+      <ul>
+        <li>Via GCP Console, <code>gcloud</code> CLI, or Terraform.</li>
+        <li><code>gcloud projects create YOUR_PROJECT_ID --name="Your Project Name" --set-as-default</code></li>
+        <li>Associate a billing account:
+          <code>gcloud beta billing projects link YOUR_PROJECT_ID --billing-account=YOUR_BILLING_ACCOUNT_ID</code></li>
+      </ul>
+    </li>
+    <li><strong>Enable Necessary APIs:</strong> (Same as before)
+      <ul>
+        <li>Compute Engine, Cloud Resource Manager, IAM, Service Usage, Cloud Storage, etc.</li>
+        <li>
+          <code>gcloud services enable compute.googleapis.com cloudresourcemanager.googleapis.com iam.googleapis.com serviceusage.googleapis.com storage.googleapis.com identitytoolkit.googleapis.com sts.googleapis.com --project=YOUR_PROJECT_ID</code>
+          <ul>
+            <li><strong>Added:</strong> <code>identitytoolkit.googleapis.com</code> and <code>sts.googleapis.com</code>
+              (Security Token Service API) are essential for Workload Identity Federation.</li>
+          </ul>
+        </li>
+      </ul>
+    </li>
+    <li><strong>Terraform State Backend (GCS Bucket):</strong> (Same as before)
+      <ul>
+        <li>Create a GCS bucket, ideally in a central "TF state" project.</li>
+        <li><code>gsutil mb -p YOUR_PROJECT_ID_FOR_STATE -l YOUR_REGION gs://your-terraform-state-bucket-name</code>
+        </li>
+        <li>Enable versioning: <code>gsutil versioning set on gs://your-terraform-state-bucket-name</code></li>
+      </ul>
+    </li>
+  </ol>
+  <p><strong>Security Details (Focus on WIF):</strong></p>
+  <ol>
+    <li><strong>GCP Service Account for Tekton (GCP SA):</strong>
+      <ul>
+        <li>Create a dedicated GCP SA that Tekton will impersonate. Let's call it
+          <code>tekton-wif-terraform-sa@YOUR_PROJECT_ID.iam.gserviceaccount.com</code>.</li>
+        <li>
+          <code>gcloud iam service-accounts create tekton-wif-terraform-sa --display-name="Tekton WIF Terraform SA" --project=YOUR_PROJECT_ID</code>
+        </li>
+        <li><strong>Crucially: You generally do NOT need to create or download JSON keys for this GCP SA if Tekton will
+            exclusively use WIF.</strong> The whole point of WIF is to avoid these keys for your CI/CD system.</li>
+      </ul>
+    </li>
+    <li><strong>IAM Roles for the GCP SA (<code>tekton-wif-terraform-sa</code>):</strong>
+      <ul>
+        <li>This GCP SA needs permissions to manage resources in <code>YOUR_PROJECT_ID</code> and access the Terraform
+          state bucket.</li>
+        <li>Grant project-level role:
+          <code>gcloud projects add-iam-policy-binding YOUR_PROJECT_ID --member="serviceAccount:tekton-wif-terraform-sa@YOUR_PROJECT_ID.iam.gserviceaccount.com" --role="roles/owner"</code>
+          (or more granular roles like <code>roles/compute.admin</code>, <code>roles/storage.admin</code>).
+        </li>
+        <li>Grant bucket-level role (if state bucket is <code>gs://your-terraform-state-bucket-name</code> in project
+          <code>YOUR_PROJECT_ID_FOR_STATE</code>):
+          <code>gsutil iam ch serviceAccount:tekton-wif-terraform-sa@YOUR_PROJECT_ID.iam.gserviceaccount.com:objectAdmin gs://your-terraform-state-bucket-name</code>
+        </li>
+      </ul>
+    </li>
+    <li><strong>Principle of Least Privilege (PoLP):</strong> Always applies. Grant only necessary permissions to
+      <code>tekton-wif-terraform-sa</code>.</li>
+  </ol>
+  <p><strong>Integration Details:</strong></p>
+  <ul>
+    <li>The GCP Project ID and GCS bucket name for state are in <code>backend.tf</code>.</li>
+    <li>Authentication will be handled by WIF, configured in a later step.</li>
+  </ul>
+  <hr />
+  <h3>2. Developers Use Terraform Script in a GitHub Repo</h3>
+  <p><strong>(This section remains largely the same as before, as it deals with the Terraform code itself, not the CI/CD
+      authentication mechanism.)</strong></p>
+  <p><strong>Technical Details:</strong></p>
+  <ol>
+    <li><strong>Repository Setup:</strong> Standard Terraform project structure (<code>main.tf</code>,
+      <code>variables.tf</code>, etc.).</li>
+    <li><strong><code>backend.tf</code> example:</strong>
+      <code>terraform
 terraform {
   backend "gcs" {
     bucket  = "your-terraform-state-bucket-name"
@@ -99,178 +135,220 @@ terraform {
     # Check provider docs if issues arise.
   }
 }
-</code></li>
-<li><p><strong>Provider Configuration (<code>versions.tf</code> or <code>main.tf</code>):</strong>
-```terraform
-terraform {
-  required_providers {
-    google = {
-      source  = "hashicorp/google"
-      version = "~&gt; 4.0" # Use a version that robustly supports WIF
-    }
-  }
-}</p>
-<p>provider "google" {
-  project = var.gcp<em>project</em>id
-  region  = var.gcp_region
-  # No explicit credentials here. The provider will pick up WIF context.
-}
-```</p></li>
-</ol>
-<p><strong>Security Details:</strong></p>
-<ol>
-<li><strong>Branch Protection:</strong> Essential.</li>
-<li><strong>Secrets Management (within Terraform):</strong> Use GCP Secret Manager, etc.</li>
-</ol>
-<p><strong>Integration Details:</strong> GitHub webhooks trigger Tekton.</p>
-<hr/>
-<h3>Setup: Workload Identity Federation between OpenShift and GCP</h3>
-<p>This is the new crucial setup step replacing the GCP SA key secret in OpenShift.</p>
-<p><strong>Technical Details:</strong></p>
-<ol>
-<li><strong>Identify OpenShift OIDC Provider URL:</strong>
-<ul>
-<li>Your OpenShift cluster has an OIDC issuer URL. This is often discoverable. For OpenShift, it's typically of the form:
-<code>oc get authentication.config.openshift.io cluster -ojsonpath='{.spec.serviceAccountIssuer}'</code>
-Or check your OpenShift cluster's <code>.well-known/openid-configuration</code> endpoint. (e.g., <code>https://&lt;api-server-url&gt;/.well-known/openid-configuration</code>). Let's say this is <code>YOUR_OIDC_ISSUER_URL</code>.</li>
-</ul></li>
-<li><strong>Create a Workload Identity Pool in GCP:</strong>
-<ul>
-<li><code>gcloud iam workload-identity-pools create "openshift-pool" --project="YOUR_PROJECT_ID" --location="global" --display-name="OpenShift WIF Pool"</code></li>
-</ul></li>
-<li><strong>Create a Workload Identity Provider within the Pool:</strong>
-<ul>
-<li>This links your OpenShift OIDC provider to the GCP pool.</li>
-<li><code>gcloud iam workload-identity-pools providers create-oidc "openshift-provider" \
+</code>
+    </li>
+    <li>
+      <p><strong>Provider Configuration (<code>versions.tf</code> or <code>main.tf</code>):</strong>
+        ```terraform
+        terraform {
+        required_providers {
+        google = {
+        source = "hashicorp/google"
+        version = "~&gt; 4.0" # Use a version that robustly supports WIF
+        }
+        }
+        }</p>
+      <p>provider "google" {
+        project = var.gcp<em>project</em>id
+        region = var.gcp_region
+        # No explicit credentials here. The provider will pick up WIF context.
+        }
+        ```</p>
+    </li>
+  </ol>
+  <p><strong>Security Details:</strong></p>
+  <ol>
+    <li><strong>Branch Protection:</strong> Essential.</li>
+    <li><strong>Secrets Management (within Terraform):</strong> Use GCP Secret Manager, etc.</li>
+  </ol>
+  <p><strong>Integration Details:</strong> GitHub webhooks trigger Tekton.</p>
+  <hr />
+  <h3>Setup: Workload Identity Federation between OpenShift and GCP</h3>
+  <p>This is the new crucial setup step replacing the GCP SA key secret in OpenShift.</p>
+  <p><strong>Technical Details:</strong></p>
+  <ol>
+    <li><strong>Identify OpenShift OIDC Provider URL:</strong>
+      <ul>
+        <li>Your OpenShift cluster has an OIDC issuer URL. This is often discoverable. For OpenShift, it's typically of
+          the form:
+          <code>oc get authentication.config.openshift.io cluster -ojsonpath='{.spec.serviceAccountIssuer}'</code>
+          Or check your OpenShift cluster's <code>.well-known/openid-configuration</code> endpoint. (e.g.,
+          <code>https://&lt;api-server-url&gt;/.well-known/openid-configuration</code>). Let's say this is
+          <code>YOUR_OIDC_ISSUER_URL</code>.
+        </li>
+      </ul>
+    </li>
+    <li><strong>Create a Workload Identity Pool in GCP:</strong>
+      <ul>
+        <li>
+          <code>gcloud iam workload-identity-pools create "openshift-pool" --project="YOUR_PROJECT_ID" --location="global" --display-name="OpenShift WIF Pool"</code>
+        </li>
+      </ul>
+    </li>
+    <li><strong>Create a Workload Identity Provider within the Pool:</strong>
+      <ul>
+        <li>This links your OpenShift OIDC provider to the GCP pool.</li>
+        <li><code>gcloud iam workload-identity-pools providers create-oidc "openshift-provider" \
 --project="YOUR_PROJECT_ID" \
 --location="global" \
 --workload-identity-pool="openshift-pool" \
 --display-name="OpenShift OIDC Provider" \
 --attribute-mapping="google.subject=assertion.sub" \
 --issuer-uri="YOUR_OIDC_ISSUER_URL"</code>
-<ul>
-<li><code>YOUR_OIDC_ISSUER_URL</code> is what you found in step 1.</li>
-<li><code>attribute-mapping</code> maps the OIDC token's subject (<code>sub</code>) claim to GCP's <code>google.subject</code>. The <code>sub</code> claim for K8s SAs is typically <code>system:serviceaccount:NAMESPACE:KSA_NAME</code>.</li>
-</ul></li>
-</ul></li>
-<li><strong>Allow K8s SA to Impersonate GCP SA:</strong>
-<ul>
-<li>This grants the K8s SA (e.g., <code>pipeline</code> SA in <code>your-tekton-namespace</code>) running Tekton pods the permission to act as the GCP SA (<code>tekton-wif-terraform-sa</code>).</li>
-<li><code>gcloud iam service-accounts add-iam-policy-binding "tekton-wif-terraform-sa@YOUR_PROJECT_ID.iam.gserviceaccount.com" \
+          <ul>
+            <li><code>YOUR_OIDC_ISSUER_URL</code> is what you found in step 1.</li>
+            <li><code>attribute-mapping</code> maps the OIDC token's subject (<code>sub</code>) claim to GCP's
+              <code>google.subject</code>. The <code>sub</code> claim for K8s SAs is typically
+              <code>system:serviceaccount:NAMESPACE:KSA_NAME</code>.</li>
+          </ul>
+        </li>
+      </ul>
+    </li>
+    <li><strong>Allow K8s SA to Impersonate GCP SA:</strong>
+      <ul>
+        <li>This grants the K8s SA (e.g., <code>pipeline</code> SA in <code>your-tekton-namespace</code>) running Tekton
+          pods the permission to act as the GCP SA (<code>tekton-wif-terraform-sa</code>).</li>
+        <li>
+          <code>gcloud iam service-accounts add-iam-policy-binding "tekton-wif-terraform-sa@YOUR_PROJECT_ID.iam.gserviceaccount.com" \
 --project="YOUR_PROJECT_ID" \
 --role="roles/iam.workloadIdentityUser" \
 --member="principalSet://iam.googleapis.com/projects/YOUR_GCP_PROJECT_NUMBER/locations/global/workloadIdentityPools/openshift-pool/subject/system:serviceaccount:your-tekton-namespace:pipeline"</code>
-<ul>
-<li><code>YOUR_GCP_PROJECT_NUMBER</code> is the numerical ID of your GCP project.</li>
-<li><code>your-tekton-namespace</code>: The OpenShift namespace where Tekton pipelines run.</li>
-<li><code>pipeline</code>: The name of the K8s Service Account used by Tekton PipelineRuns. If you use a different K8s SA, adjust accordingly.</li>
-</ul></li>
-</ul></li>
-<li><strong>Annotate the Kubernetes Service Account (K8s SA) in OpenShift:</strong>
-<ul>
-<li>The K8s SA that will run your Tekton pods (e.g., <code>pipeline</code> in <code>your-tekton-namespace</code>) needs an annotation to link it to the GCP SA.</li>
-<li><code>oc annotate sa pipeline -n your-tekton-namespace \
+          <ul>
+            <li><code>YOUR_GCP_PROJECT_NUMBER</code> is the numerical ID of your GCP project.</li>
+            <li><code>your-tekton-namespace</code>: The OpenShift namespace where Tekton pipelines run.</li>
+            <li><code>pipeline</code>: The name of the K8s Service Account used by Tekton PipelineRuns. If you use a
+              different K8s SA, adjust accordingly.</li>
+          </ul>
+        </li>
+      </ul>
+    </li>
+    <li><strong>Annotate the Kubernetes Service Account (K8s SA) in OpenShift:</strong>
+      <ul>
+        <li>The K8s SA that will run your Tekton pods (e.g., <code>pipeline</code> in
+          <code>your-tekton-namespace</code>) needs an annotation to link it to the GCP SA.</li>
+        <li><code>oc annotate sa pipeline -n your-tekton-namespace \
 iam.gke.io/gcp-service-account="tekton-wif-terraform-sa@YOUR_PROJECT_ID.iam.gserviceaccount.com"</code></li>
-<li>This annotation tells the Google Cloud auth libraries running inside the pod (e.g., within the Terraform provider) which GCP SA to impersonate.</li>
-</ul></li>
-</ol>
-<p><strong>Security Details:</strong></p>
-<ul>
-<li>This setup eliminates the need for GCP SA keys in your OpenShift cluster for Tekton's GCP access.</li>
-<li>The trust is established via OIDC between OpenShift and GCP.</li>
-<li>Ensure the K8s SA (<code>pipeline</code> or custom) has minimal necessary OpenShift permissions.</li>
-</ul>
-<hr/>
-<h3>3. Use OpenShift Tekton Pipeline to Run Terraform (Adapted for WIF)</h3>
-<p><strong>Technical Details:</strong></p>
-<ol>
-<li><strong>Install Tekton:</strong> (Same as before - Tekton Pipelines &amp; Triggers Operators).</li>
-<li><strong>Kubernetes Secret for GCP Credentials:</strong>
-<ul>
-<li><strong>NO LONGER NEEDED for GCP SA key.</strong> WIF handles this.</li>
-</ul></li>
-<li><strong>Create a Kubernetes Secret for GitHub Access:</strong> (Same as before - for cloning private repos &amp; status updates)
-<ul>
-<li><code>oc create secret generic github-credentials --from-literal=token=YOUR_GITHUB_PAT -n your-tekton-namespace</code></li>
-</ul></li>
-<li><p><strong>Define Tekton Tasks:</strong></p>
-<ul>
-<li><strong><code>git-clone</code> Task:</strong> (Same as before).</li>
-<li><p><strong><code>terraform-cli</code> Task (Custom - Modified for WIF):</strong>
-```yaml
-apiVersion: tekton.dev/v1beta1
-kind: Task
-metadata:
-  name: terraform-cli-wif
-spec:
-  params:
-    - name: COMMAND
-      type: string
-    - name: ARGS
-      type: array
-      default: []
-    - name: DIRECTORY
-      type: string
-      default: "."
-    - name: GCP<em>PROJECT</em>ID # For clarity, though provider can infer
-      type: string
-    - name: GCP<em>REGION # For clarity
-      type: string
-  workspaces:
-    - name: source
-      description: The Terraform source code
-  # No gcp-credentials workspace needed for WIF
-  steps:
-    - name: terraform
-      image: hashicorp/terraform:latest # Ensure this image/provider supports WIF well
-      workingDir: $(workspaces.source.path)/$(params.DIRECTORY)
-      env:
-        # GOOGLE</em>APPLICATION<em>CREDENTIALS is NOT set when using WIF from K8s SA
-        # The provider automatically detects the WIF environment if K8s SA is annotated.
-        - name: TF</em>VAR<em>gcp</em>project<em>id # Example of passing vars to Terraform
-          value: $(params.GCP</em>PROJECT<em>ID)
-        - name: TF</em>VAR<em>gcp</em>region
-          value: $(params.GCP_REGION)
-      script: |
-        #!/bin/bash
-        set -e
-        echo "Terraform CLI Task using Workload Identity Federation"
-        echo "Running: terraform $(params.COMMAND) $@"</p>
-<pre><code>    # The Google provider will automatically use the federated identity
+        <li>This annotation tells the Google Cloud auth libraries running inside the pod (e.g., within the Terraform
+          provider) which GCP SA to impersonate.</li>
+      </ul>
+    </li>
+  </ol>
+  <p><strong>Security Details:</strong></p>
+  <ul>
+    <li>This setup eliminates the need for GCP SA keys in your OpenShift cluster for Tekton's GCP access.</li>
+    <li>The trust is established via OIDC between OpenShift and GCP.</li>
+    <li>Ensure the K8s SA (<code>pipeline</code> or custom) has minimal necessary OpenShift permissions.</li>
+  </ul>
+  <hr />
+  <h3>3. Use OpenShift Tekton Pipeline to Run Terraform (Adapted for WIF)</h3>
+  <p><strong>Technical Details:</strong></p>
+  <ol>
+    <li><strong>Install Tekton:</strong> (Same as before - Tekton Pipelines &amp; Triggers Operators).</li>
+    <li><strong>Kubernetes Secret for GCP Credentials:</strong>
+      <ul>
+        <li><strong>NO LONGER NEEDED for GCP SA key.</strong> WIF handles this.</li>
+      </ul>
+    </li>
+    <li><strong>Create a Kubernetes Secret for GitHub Access:</strong> (Same as before - for cloning private repos &amp;
+      status updates)
+      <ul>
+        <li>
+          <code>oc create secret generic github-credentials --from-literal=token=YOUR_GITHUB_PAT -n your-tekton-namespace</code>
+        </li>
+      </ul>
+    </li>
+    <li>
+      <p><strong>Define Tekton Tasks:</strong></p>
+      <ul>
+        <li><strong><code>git-clone</code> Task:</strong> (Same as before).</li>
+        <li>
+          <p><strong><code>terraform-cli</code> Task (Custom - Modified for WIF):</strong>
+            ```yaml
+            apiVersion: tekton.dev/v1beta1
+            kind: Task
+            metadata:
+            name: terraform-cli-wif
+            spec:
+            params:
+            - name: COMMAND
+            type: string
+            - name: ARGS
+            type: array
+            default: []
+            - name: DIRECTORY
+            type: string
+            default: "."
+            - name: GCP<em>PROJECT</em>ID # For clarity, though provider can infer
+            type: string
+            - name: GCP<em>REGION # For clarity
+              type: string
+              workspaces:
+              - name: source
+              description: The Terraform source code
+              # No gcp-credentials workspace needed for WIF
+              steps:
+              - name: terraform
+              image: hashicorp/terraform:latest # Ensure this image/provider supports WIF well
+              workingDir: $(workspaces.source.path)/$(params.DIRECTORY)
+              env:
+              # GOOGLE</em>APPLICATION<em>CREDENTIALS is NOT set when using WIF from K8s SA
+              # The provider automatically detects the WIF environment if K8s SA is annotated.
+              - name: TF</em>VAR<em>gcp</em>project<em>id # Example of passing vars to Terraform
+              value: $(params.GCP</em>PROJECT<em>ID)
+              - name: TF</em>VAR<em>gcp</em>region
+            value: $(params.GCP_REGION)
+            script: |
+            #!/bin/bash
+            set -e
+            echo "Terraform CLI Task using Workload Identity Federation"
+            echo "Running: terraform $(params.COMMAND) $@"</p>
+          <pre><code>    # The Google provider will automatically use the federated identity
     # of the K8s service account running this pod.
     terraform $(params.COMMAND) $(params.ARGS[*])
 </code></pre>
-<p>```</p>
-<ul>
-<li><strong>Key Change:</strong> Removed <code>workspaces.gcp-credentials</code> and <code>GOOGLE_APPLICATION_CREDENTIALS</code> env var. The Terraform Google provider (when run in a GKE/OpenShift pod with an annotated K8s SA) automatically handles WIF.</li>
-</ul></li>
-</ul></li>
-<li><p><strong>Define Tekton Pipelines (<code>terraform-plan-pipeline</code>, <code>terraform-apply-pipeline</code>):</strong></p>
-<ul>
-<li>These will use the <code>terraform-cli-wif</code> task.</li>
-<li>When defining the <code>PipelineRun</code> (or its template), ensure it specifies the K8s Service Account that you annotated for WIF (e.g., <code>serviceAccountName: pipeline</code>).</li>
-</ul></li>
-</ol>
-<p><strong>Security Details:</strong></p>
-<ol>
-<li><strong>OpenShift Service Account (K8s SA):</strong> The K8s SA (e.g., <code>pipeline</code>) used by <code>PipelineRuns</code> is now the linchpin for GCP authentication via WIF. Its permissions <em>within OpenShift</em> are still relevant (e.g., to create pods, use PVCs).</li>
-<li><strong>Network Policies:</strong> (Same as before - allow egress to GitHub and GCP APIs).</li>
-</ol>
-<p><strong>Integration Details:</strong></p>
-<ul>
-<li><strong>Workspaces:</strong> Still used for <code>source</code> code.</li>
-<li><strong>Secrets:</strong> Only <code>github-credentials</code> remains for this part.</li>
-</ul>
-<hr/>
-<h3>4. PR Trigger for <code>terraform init</code> and <code>terraform plan</code></h3>
-<p><strong>(This section remains largely the same in terms of Tekton Triggers logic, but the resulting <code>PipelineRun</code> will use the WIF-enabled setup.)</strong></p>
-<p><strong>Technical Details:</strong></p>
-<ol>
-<li><strong>GitHub Webhook:</strong> (Same setup).</li>
-<li><strong>Tekton Triggers Setup (<code>EventListener</code>, <code>TriggerBinding</code>, <code>TriggerTemplate</code>):</strong> (Same YAML structure as before).
-<ul>
-<li><strong>Key Change in <code>TriggerTemplate</code>'s <code>PipelineRun</code> spec:</strong>
-<code>yaml
+          <p>```</p>
+          <ul>
+            <li><strong>Key Change:</strong> Removed <code>workspaces.gcp-credentials</code> and
+              <code>GOOGLE_APPLICATION_CREDENTIALS</code> env var. The Terraform Google provider (when run in a
+              GKE/OpenShift pod with an annotated K8s SA) automatically handles WIF.</li>
+          </ul>
+        </li>
+      </ul>
+    </li>
+    <li>
+      <p><strong>Define Tekton Pipelines (<code>terraform-plan-pipeline</code>,
+          <code>terraform-apply-pipeline</code>):</strong></p>
+      <ul>
+        <li>These will use the <code>terraform-cli-wif</code> task.</li>
+        <li>When defining the <code>PipelineRun</code> (or its template), ensure it specifies the K8s Service Account
+          that you annotated for WIF (e.g., <code>serviceAccountName: pipeline</code>).</li>
+      </ul>
+    </li>
+  </ol>
+  <p><strong>Security Details:</strong></p>
+  <ol>
+    <li><strong>OpenShift Service Account (K8s SA):</strong> The K8s SA (e.g., <code>pipeline</code>) used by
+      <code>PipelineRuns</code> is now the linchpin for GCP authentication via WIF. Its permissions <em>within
+        OpenShift</em> are still relevant (e.g., to create pods, use PVCs).</li>
+    <li><strong>Network Policies:</strong> (Same as before - allow egress to GitHub and GCP APIs).</li>
+  </ol>
+  <p><strong>Integration Details:</strong></p>
+  <ul>
+    <li><strong>Workspaces:</strong> Still used for <code>source</code> code.</li>
+    <li><strong>Secrets:</strong> Only <code>github-credentials</code> remains for this part.</li>
+  </ul>
+  <hr />
+  <h3>4. PR Trigger for <code>terraform init</code> and <code>terraform plan</code></h3>
+  <p><strong>(This section remains largely the same in terms of Tekton Triggers logic, but the resulting
+      <code>PipelineRun</code> will use the WIF-enabled setup.)</strong></p>
+  <p><strong>Technical Details:</strong></p>
+  <ol>
+    <li><strong>GitHub Webhook:</strong> (Same setup).</li>
+    <li><strong>Tekton Triggers Setup (<code>EventListener</code>, <code>TriggerBinding</code>,
+        <code>TriggerTemplate</code>):</strong> (Same YAML structure as before).
+      <ul>
+        <li><strong>Key Change in <code>TriggerTemplate</code>'s <code>PipelineRun</code> spec:</strong>
+          <code>yaml
 # ... inside TriggerTemplate.resourcetemplates.PipelineRun.spec ...
 pipelineRef:
   name: terraform-plan-pipeline # This pipeline uses terraform-cli-wif
@@ -294,25 +372,30 @@ value: "YOUR&lt;em&gt;PROJECT&lt;/em&gt;ID" # Pass your GCP project ID&lt;/li&gt
 &lt;li&gt;name: GCP&lt;em&gt;REGION
   value: "YOUR&lt;/em&gt;GCP_REGION" # Pass your GCP region
 # ... other params for GitHub status updates ...
-</code></li>
-</ul></li>
+</code>
+        </li>
+      </ul>
+    </li>
 
-</ol>
-<p><strong>Security &amp; Integration:</strong></p>
-<ul>
-<li>Webhook secret for GitHub.</li>
-<li>GitHub PAT/App for repo access and status updates.</li>
-<li>The <code>PipelineRun</code> will inherit the WIF capabilities from its K8s <code>serviceAccountName</code>.</li>
-</ul>
-<hr/>
-<h3>5. PR Approval Triggers <code>terraform apply</code></h3>
-<p><strong>(Again, the trigger logic is similar, but the <code>PipelineRun</code> uses WIF.)</strong></p>
-<p><strong>Technical Details (for Merge-to-Main Trigger):</strong></p>
-<ol>
-<li><strong>GitHub Webhook &amp; Tekton Triggers:</strong> (Same setup for <code>EventListener</code>, <code>TriggerBinding</code>, <code>TriggerTemplate</code> as described before for push to main).
-<ul>
-<li><strong>Key Change in <code>TriggerTemplate</code>'s <code>PipelineRun</code> spec (similar to plan):</strong>
-<code>yaml
+  </ol>
+  <p><strong>Security &amp; Integration:</strong></p>
+  <ul>
+    <li>Webhook secret for GitHub.</li>
+    <li>GitHub PAT/App for repo access and status updates.</li>
+    <li>The <code>PipelineRun</code> will inherit the WIF capabilities from its K8s <code>serviceAccountName</code>.
+    </li>
+  </ul>
+  <hr />
+  <h3>5. PR Approval Triggers <code>terraform apply</code></h3>
+  <p><strong>(Again, the trigger logic is similar, but the <code>PipelineRun</code> uses WIF.)</strong></p>
+  <p><strong>Technical Details (for Merge-to-Main Trigger):</strong></p>
+  <ol>
+    <li><strong>GitHub Webhook &amp; Tekton Triggers:</strong> (Same setup for <code>EventListener</code>,
+      <code>TriggerBinding</code>, <code>TriggerTemplate</code> as described before for push to main).
+      <ul>
+        <li><strong>Key Change in <code>TriggerTemplate</code>'s <code>PipelineRun</code> spec (similar to
+            plan):</strong>
+          <code>yaml
 # ... inside TriggerTemplate.resourcetemplates.PipelineRun.spec ...
 pipelineRef:
   name: terraform-apply-pipeline # This pipeline uses terraform-cli-wif
@@ -334,39 +417,60 @@ value: "YOUR&lt;em&gt;PROJECT&lt;/em&gt;ID"&lt;/li&gt;
 value: "YOUR&lt;/em&gt;GCP_REGION"&lt;/li&gt;
 &lt;li&gt;name: TERRAFORM_ARGS
 value: ["-auto-approve"]
-</code></li>
-</ul></li>
+</code>
+        </li>
+      </ul>
+    </li>
 
-</ol>
-<p><strong>Security &amp; Integration:</strong></p>
-<ul>
-<li>Authorization (merge to main, comment-based with careful auth) is still key.</li>
-<li>State locking via GCS backend.</li>
-<li>The <code>apply</code> <code>PipelineRun</code> leverages WIF via its K8s <code>serviceAccountName</code>.</li>
-</ul>
-<hr/>
-<h3>When GCP SA Keys Might Still Be an Option (or necessary temporarily):</h3>
-<ol>
-<li><strong>Bootstrapping WIF Itself:</strong> If you were to use Terraform to set up the WIF Pool, Provider, and IAM bindings for WIF, that initial Terraform execution (likely from a developer machine or a secure bootstrap environment) might need to use an SA key with sufficient permissions.</li>
-<li><strong>Tools/Scripts Outside Kubernetes/Tekton:</strong> If you have scripts or tools running <em>outside</em> your OpenShift cluster that need to interact with GCP for this project, and they cannot leverage WIF (e.g., a local developer environment for initial tests), an SA key might be used <em>for those specific, limited scenarios</em>. The goal is to avoid them in your automated CI/CD flow.</li>
-<li><strong>Very Specific Cross-Project Scenarios with Complex Permissions:</strong> While WIF supports impersonation across projects, if the setup for a particular resource (like a centrally managed secrets vault accessed by Terraform) is exceptionally complex with WIF initially, one <em>might</em> fall back to an SA key for that specific interaction as a temporary measure, with a plan to migrate to WIF. However, the Terraform state bucket access for <code>tekton-wif-terraform-sa</code> should be achievable.</li>
-</ol>
-<p>For your primary goal of Tekton running Terraform, WIF is the recommended and more secure path.</p>
-<hr/>
-<h3>Key Considerations &amp; Best Practices (WIF Context):</h3>
-<ol>
-<li><strong>Terraform Google Provider Version:</strong> Ensure you are using a recent version of the HashiCorp Google provider, as WIF support has matured over time.</li>
-<li><strong>K8s Service Account RBAC:</strong> The K8s SA (<code>pipeline</code> or custom) used for WIF still needs appropriate RBAC permissions within OpenShift to execute Tekton tasks (create pods, use PVCs, access <code>github-credentials</code> secret).</li>
-<li><strong>Troubleshooting WIF:</strong>
-<ul>
-<li>Check IAM audit logs in GCP for token exchange issues.</li>
-<li>Ensure OIDC issuer URL is correct and publicly discoverable (or GCP can reach it).</li>
-<li>Verify K8s SA annotations and the <code>subject</code> mapping in the WIF provider.</li>
-<li>The <code>gcloud auth print-access-token</code> command (when run from inside a pod configured for WIF) can be a useful diagnostic.</li>
-</ul></li>
-<li><strong>Least Privilege for GCP SA:</strong> The GCP SA (<code>tekton-wif-terraform-sa</code>) that is being impersonated should <em>still</em> adhere to the principle of least privilege in GCP. Only grant it the roles necessary for Terraform to manage resources in the target project and access its state bucket.</li>
-</ol>
-<p>By implementing Workload Identity Federation, you've taken a significant step towards a more secure and manageable GCP infrastructure automation setup. It reduces the attack surface associated with long-lived credentials, which is a big win!</p>
+  </ol>
+  <p><strong>Security &amp; Integration:</strong></p>
+  <ul>
+    <li>Authorization (merge to main, comment-based with careful auth) is still key.</li>
+    <li>State locking via GCS backend.</li>
+    <li>The <code>apply</code> <code>PipelineRun</code> leverages WIF via its K8s <code>serviceAccountName</code>.</li>
+  </ul>
+  <hr />
+  <h3>When GCP SA Keys Might Still Be an Option (or necessary temporarily):</h3>
+  <ol>
+    <li><strong>Bootstrapping WIF Itself:</strong> If you were to use Terraform to set up the WIF Pool, Provider, and
+      IAM bindings for WIF, that initial Terraform execution (likely from a developer machine or a secure bootstrap
+      environment) might need to use an SA key with sufficient permissions.</li>
+    <li><strong>Tools/Scripts Outside Kubernetes/Tekton:</strong> If you have scripts or tools running <em>outside</em>
+      your OpenShift cluster that need to interact with GCP for this project, and they cannot leverage WIF (e.g., a
+      local developer environment for initial tests), an SA key might be used <em>for those specific, limited
+        scenarios</em>. The goal is to avoid them in your automated CI/CD flow.</li>
+    <li><strong>Very Specific Cross-Project Scenarios with Complex Permissions:</strong> While WIF supports
+      impersonation across projects, if the setup for a particular resource (like a centrally managed secrets vault
+      accessed by Terraform) is exceptionally complex with WIF initially, one <em>might</em> fall back to an SA key for
+      that specific interaction as a temporary measure, with a plan to migrate to WIF. However, the Terraform state
+      bucket access for <code>tekton-wif-terraform-sa</code> should be achievable.</li>
+  </ol>
+  <p>For your primary goal of Tekton running Terraform, WIF is the recommended and more secure path.</p>
+  <hr />
+  <h3>Key Considerations &amp; Best Practices (WIF Context):</h3>
+  <ol>
+    <li><strong>Terraform Google Provider Version:</strong> Ensure you are using a recent version of the HashiCorp
+      Google provider, as WIF support has matured over time.</li>
+    <li><strong>K8s Service Account RBAC:</strong> The K8s SA (<code>pipeline</code> or custom) used for WIF still needs
+      appropriate RBAC permissions within OpenShift to execute Tekton tasks (create pods, use PVCs, access
+      <code>github-credentials</code> secret).</li>
+    <li><strong>Troubleshooting WIF:</strong>
+      <ul>
+        <li>Check IAM audit logs in GCP for token exchange issues.</li>
+        <li>Ensure OIDC issuer URL is correct and publicly discoverable (or GCP can reach it).</li>
+        <li>Verify K8s SA annotations and the <code>subject</code> mapping in the WIF provider.</li>
+        <li>The <code>gcloud auth print-access-token</code> command (when run from inside a pod configured for WIF) can
+          be a useful diagnostic.</li>
+      </ul>
+    </li>
+    <li><strong>Least Privilege for GCP SA:</strong> The GCP SA (<code>tekton-wif-terraform-sa</code>) that is being
+      impersonated should <em>still</em> adhere to the principle of least privilege in GCP. Only grant it the roles
+      necessary for Terraform to manage resources in the target project and access its state bucket.</li>
+  </ol>
+  <p>By implementing Workload Identity Federation, you've taken a significant step towards a more secure and manageable
+    GCP infrastructure automation setup. It reduces the attack surface associated with long-lived credentials, which is
+    a big win!</p>
 
 </body>
+
 </html>

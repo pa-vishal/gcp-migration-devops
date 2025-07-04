@@ -10,8 +10,11 @@
         mermaid.initialize({ startOnLoad: true });
     </script>
     <style>
-        body { font-family: Arial, sans-serif; margin: 20px; margin: 2rem auto; padding: 2rem;
-    }
+        body {
+            max-width: 960px;
+            margin: 2rem auto;
+            padding: 2rem;
+        }
         h1, h2, h3 { color: #333; }
         pre { background: #f4f4f4; padding: 10px; border-radius: 5px; overflow-x: auto; }
     </style>
@@ -28,39 +31,38 @@
 
     <h2>Flow Diagram: Azure AD App Registration & Authentication</h2>
     <pre class="mermaid">
- 
- graph TD
-    subgraph "Phase 2: Application Authentication Flow (e.g., OAuth 2.0 Authorization Code Grant)"
-        H["User"] -->|"1.Attempts to access Client Application"| I("Client Application")
-        I -->|"2.Redirects User to Azure AD (with Client ID, Redirect URI, Scope)"| J("Azure AD /authorize Endpoint")
-        J -->|"3.User Authenticates (Credentials, MFA)"| K["User Enters Credentials & Consents"]
-        K -->|"4.Azure AD Verifies & Issues Auth Code"| J
-        J -->|"5.Redirects User back to App's Redirect URI (with Auth Code)"| I
-        I -->|"6.App Exchanges Auth Code + Client ID + Client Secret for Tokens (Server-Side)"| L("Azure AD /token Endpoint")
-        L -->|"7.Azure AD Validates & Issues Tokens"| M{"ID Token (User Info)\nAccess Token (API Access)\nRefresh Token"}
-        M -->|"8.Tokens returned to Client Application"| I
-        I -->|"9.App Validates Tokens & Establishes User Session"| N["User is Authenticated & Authorized"]
-        N -->|"10.App can call Protected APIs (e.g., Microsoft Graph) with Access Token"| O("Protected Resource / API")
-    end
-     
-    subgraph subGraph1["Phase 1: Application Registration (Admin/Developer Task in Azure Portal)"]
-        B("Azure Active Directory")
-        A["Developer/Admin"]
-        C{"New registration"}
-        D["Name, Supported account types, Redirect URI(s)"]
-        E["Azure AD Creates App Registration"]
-        F{"Application (Client) ID\nDirectory (Tenant) ID\n(Optional) Client Secret/Certificate\n(Optional) API Permissions"}
-        G["App Configuration/Secrets Store"]
-    end
-        A -- "1.Accesses Azure Portal" --> B
-        B -- "2.Navigates to 'App registrations'" --> C
-        C -- "3.Provides App Details" --> D
-        D -- "4.Registers App" --> E
-        E -- "5.Outputs Identifiers & Config" --> F
-        F -- "6.Developer Securely Stores Identifiers" --> G
+graph TD
+   subgraph "Phase 2: Application Authentication Flow (e.g., OAuth 2.0 Authorization Code Grant)"
+       H["User"] -->|"1.Attempts to access Client Application"| I("Client Application")
+       I -->|"2.Redirects User to Azure AD (with Client ID, Redirect URI, Scope)"| J("Azure AD /authorize Endpoint")
+       J -->|"3.User Authenticates (Credentials, MFA)"| K["User Enters Credentials & Consents"]
+       K -->|"4.Azure AD Verifies & Issues Auth Code"| J
+       J -->|"5.Redirects User back to App's Redirect URI (with Auth Code)"| I
+       I -->|"6.App Exchanges Auth Code + Client ID + Client Secret for Tokens (Server-Side)"| L("Azure AD /token Endpoint")
+       L -->|"7.Azure AD Validates & Issues Tokens"| M{"ID Token (User Info)\nAccess Token (API Access)\nRefresh Token"}
+       M -->|"8.Tokens returned to Client Application"| I
+       I -->|"9.App Validates Tokens & Establishes User Session"| N["User is Authenticated & Authorized"]
+       N -->|"10.App can call Protected APIs (e.g., Microsoft Graph) with Access Token"| O("Protected Resource / API")
+   end
+    
+   subgraph subGraph1["Phase 1: Application Registration (Admin/Developer Task in Azure Portal)"]
+       B("Azure Active Directory")
+       A["Developer/Admin"]
+       C{"New registration"}
+       D["Name, Supported account types, Redirect URI(s)"]
+       E["Azure AD Creates App Registration"]
+       F{"Application (Client) ID\nDirectory (Tenant) ID\n(Optional) Client Secret/Certificate\n(Optional) API Permissions"}
+       G["App Configuration/Secrets Store"]
+   end
+       A -- "1.Accesses Azure Portal" --> B
+       B -- "2.Navigates to 'App registrations'" --> C
+       C -- "3.Provides App Details" --> D
+       D -- "4.Registers App" --> E
+       E -- "5.Outputs Identifiers & Config" --> F
+       F -- "6.Developer Securely Stores Identifiers" --> G
 
-    style A fill:#ccf,stroke:#333,stroke-width:2px
-    style H fill:#f9f,stroke:#333,stroke-width:2px
+   style A fill:#ccf,stroke:#333,stroke-width:2px
+   style H fill:#f9f,stroke:#333,stroke-width:2px
     </pre>
 
     <h2>Detailed Explanation</h2>

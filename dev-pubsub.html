@@ -1,10 +1,12 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>GCP Dev Pub/Sub</title>
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/github-markdown-css/5.2.0/github-markdown-light.min.css">
+  <link rel="stylesheet"
+    href="https://cdnjs.cloudflare.com/ajax/libs/github-markdown-css/5.2.0/github-markdown-light.min.css">
   <style>
     body {
       max-width: 960px;
@@ -13,243 +15,289 @@
     }
   </style>
 </head>
+
 <body class="markdown-body">
 
-<h1>Google Cloud Pub/Sub Configuration Properties</h1>
-<p>Table summarizing Pub/Sub configuration properties, their location (Topic or Subscription), and their default values where applicable, as seen in the Google Cloud Console.</p>
+  <h1>Google Cloud Pub/Sub Configuration Properties</h1>
+  <p>Table summarizing Pub/Sub configuration properties, their location (Topic or Subscription), and their default
+    values where applicable, as seen in the Google Cloud Console.</p>
 
-<p>Properties highlighted <code>like this</code> affect the retries and hence the deadlettering</p>
-<table>
-<thead>
-<tr>
-<th>Property Name</th>
-<th>Location (Console Page)</th>
-<th>Default Value (if any)</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><strong>Topic Properties</strong></td>
-<td></td>
-<td></td>
-<td></td>
-</tr>
-<tr>
-<td>Topic ID</td>
-<td>Create/Edit Topic</td>
-<td><em>None</em> (User-defined)</td>
-<td>The unique identifier for your topic.</td>
-</tr>
-<tr>
-<td>Message Retention Duration</td>
-<td>Create/Edit Topic</td>
-<td>7 days</td>
-<td>How long Pub/Sub retains messages on the topic. Can be 10 minutes to 31 days.</td>
-</tr>
-<tr>
-<td>Schema</td>
-<td>Create/Edit Topic</td>
-<td><em>None</em> (No schema by default)</td>
-<td>Defines the structure/format of messages published to the topic (e.g., Avro, Protobuf).</td>
-</tr>
-<tr>
-<td>Customer-Managed Encryption Keys (CMEK)</td>
-<td>Create/Edit Topic</td>
-<td>Google-managed encryption keys (by default)</td>
-<td>Uses your own KMS keys to encrypt messages at rest in the topic.</td>
-</tr>
-<tr>
-<td>Default Subscription (auto-create)</td>
-<td>Create Topic</td>
-<td>Not checked (off by default)</td>
-<td>If checked, automatically creates a basic pull subscription with default settings upon topic creation.</td>
-</tr>
-<tr>
-<td>Message Ordering</td>
-<td>Create/Edit Topic</td>
-<td>Disabled (by default)</td>
-<td>Ensures messages with the same ordering key are delivered in publication order.</td>
-</tr>
-<tr>
-<td><strong>Subscription Properties</strong></td>
-<td></td>
-<td></td>
-<td></td>
-</tr>
-<tr>
-<td>Subscription ID</td>
-<td>Create/Edit Subscription</td>
-<td><em>None</em> (User-defined)</td>
-<td>The unique identifier for your subscription.</td>
-</tr>
-<tr>
-<td>Associated Topic</td>
-<td>Create Subscription</td>
-<td><em>None</em> (User must select)</td>
-<td>The topic from which this subscription receives messages.</td>
-</tr>
-<tr>
-<td>Delivery Type</td>
-<td>Create/Edit Subscription</td>
-<td>Pull</td>
-<td>How messages are delivered to subscribers (Pull or Push).</td>
-</tr>
-<tr>
-<td>Acknowledgment Deadline (<code>ack_deadline</code>)</td>
-<td>Create/Edit Subscription (Pull Delivery)</td>
-<td>10 seconds</td>
-<td>Time a subscriber has to acknowledge a pulled message before it&#39;s redelivered.</td>
-</tr>
-<tr>
-<td>Push Endpoint URL</td>
-<td>Create/Edit Subscription (Push Delivery)</td>
-<td><em>None</em> (User must provide)</td>
-<td>The HTTPS URL where Pub/Sub sends messages for Push subscriptions.</td>
-</tr>
-<tr>
-<td>Authentication (for Push)</td>
-<td>Create/Edit Subscription (Push Delivery)</td>
-<td>No authentication (for public endpoints)</td>
-<td>Method for Pub/Sub to authenticate with your push endpoint (e.g., OIDC tokens).</td>
-</tr>
-<tr>
-<td>Message Retention Duration</td>
-<td>Create/Edit Subscription</td>
-<td>7 days</td>
-<td>How long Pub/Sub retains acknowledged and unacknowledged messages on the subscription. Can be 10 minutes to 7 days.</td>
-</tr>
-<tr>
-<td>Expiration Policy</td>
-<td>Create/Edit Subscription</td>
-<td>31 days of inactivity</td>
-<td>Automatically deletes the subscription if no active subscribers are consuming messages for this duration.</td>
-</tr>
-<tr>
-<td>Retry Policy</td>
-<td>Create/Edit Subscription</td>
-<td>Exponential backoff with <code>min_backoff</code> 100ms, <code>max_backoff</code> 600s</td>
-<td>Defines how Pub/Sub retries delivery of unacknowledged messages. Options are &quot;Immediate&quot; or &quot;Exponential backoff.&quot;</td>
-</tr>
-<tr>
-<td>Minimum Backoff Duration</td>
-<td>Create/Edit Subscription (Retry Policy)</td>
-<td>100 milliseconds</td>
-<td>Smallest delay between retry attempts for exponential backoff.</td>
-</tr>
-<tr>
-<td>Maximum Backoff Duration</td>
-<td>Create/Edit Subscription (Retry Policy)</td>
-<td>600 seconds (10 minutes)</td>
-<td>Largest delay between retry attempts for exponential backoff.</td>
-</tr>
-<tr>
-<td>Dead-Lettering Policy</td>
-<td>Create/Edit Subscription</td>
-<td>Disabled (by default)</td>
-<td>Configures sending unprocessable messages to a separate dead-letter topic.</td>
-</tr>
-<tr>
-<td>Dead-Letter Topic</td>
-<td>Create/Edit Subscription (Dead-Lettering)</td>
-<td><em>None</em> (User must select if enabled)</td>
-<td>The topic where messages are sent after exceeding <code>max_delivery_attempts</code>.</td>
-</tr>
-<tr>
-<td>Max Delivery Attempts</td>
-<td>Create/Edit Subscription (Dead-Lettering)</td>
-<td>5 attempts</td>
-<td>The maximum number of times Pub/Sub will try to deliver a message before sending it to the dead-letter topic.</td>
-</tr>
-<tr>
-<td>Message Filtering</td>
-<td>Create/Edit Subscription</td>
-<td>No filter (receives all messages)</td>
-<td>Allows the subscription to receive only messages matching a specified filter expression (based on attributes).</td>
-</tr>
-<tr>
-<td>Enable Message Ordering (at subscription level)</td>
-<td>Create/Edit Subscription</td>
-<td>Disabled (by default)</td>
-<td>Ensures ordered delivery for messages with ordering keys for this specific subscription. Topic must also have ordering enabled.</td>
-</tr>
-</tbody>
-</table>
+  <p>Properties highlighted <code>like this</code> affect the retries and hence the deadlettering</p>
+  <table>
+    <thead>
+      <tr>
+        <th>Property Name</th>
+        <th>Location (Console Page)</th>
+        <th>Default Value (if any)</th>
+        <th>Description</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Topic Properties</strong></td>
+        <td></td>
+        <td></td>
+        <td></td>
+      </tr>
+      <tr>
+        <td>Topic ID</td>
+        <td>Create/Edit Topic</td>
+        <td><em>None</em> (User-defined)</td>
+        <td>The unique identifier for your topic.</td>
+      </tr>
+      <tr>
+        <td>Message Retention Duration</td>
+        <td>Create/Edit Topic</td>
+        <td>7 days</td>
+        <td>How long Pub/Sub retains messages on the topic. Can be 10 minutes to 31 days.</td>
+      </tr>
+      <tr>
+        <td>Schema</td>
+        <td>Create/Edit Topic</td>
+        <td><em>None</em> (No schema by default)</td>
+        <td>Defines the structure/format of messages published to the topic (e.g., Avro, Protobuf).</td>
+      </tr>
+      <tr>
+        <td>Customer-Managed Encryption Keys (CMEK)</td>
+        <td>Create/Edit Topic</td>
+        <td>Google-managed encryption keys (by default)</td>
+        <td>Uses your own KMS keys to encrypt messages at rest in the topic.</td>
+      </tr>
+      <tr>
+        <td>Default Subscription (auto-create)</td>
+        <td>Create Topic</td>
+        <td>Not checked (off by default)</td>
+        <td>If checked, automatically creates a basic pull subscription with default settings upon topic creation.</td>
+      </tr>
+      <tr>
+        <td>Message Ordering</td>
+        <td>Create/Edit Topic</td>
+        <td>Disabled (by default)</td>
+        <td>Ensures messages with the same ordering key are delivered in publication order.</td>
+      </tr>
+      <tr>
+        <td><strong>Subscription Properties</strong></td>
+        <td></td>
+        <td></td>
+        <td></td>
+      </tr>
+      <tr>
+        <td>Subscription ID</td>
+        <td>Create/Edit Subscription</td>
+        <td><em>None</em> (User-defined)</td>
+        <td>The unique identifier for your subscription.</td>
+      </tr>
+      <tr>
+        <td>Associated Topic</td>
+        <td>Create Subscription</td>
+        <td><em>None</em> (User must select)</td>
+        <td>The topic from which this subscription receives messages.</td>
+      </tr>
+      <tr>
+        <td>Delivery Type</td>
+        <td>Create/Edit Subscription</td>
+        <td>Pull</td>
+        <td>How messages are delivered to subscribers (Pull or Push).</td>
+      </tr>
+      <tr>
+        <td>Acknowledgment Deadline (<code>ack_deadline</code>)</td>
+        <td>Create/Edit Subscription (Pull Delivery)</td>
+        <td>10 seconds</td>
+        <td>Time a subscriber has to acknowledge a pulled message before it's redelivered.</td>
+      </tr>
+      <tr>
+        <td>Push Endpoint URL</td>
+        <td>Create/Edit Subscription (Push Delivery)</td>
+        <td><em>None</em> (User must provide)</td>
+        <td>The HTTPS URL where Pub/Sub sends messages for Push subscriptions.</td>
+      </tr>
+      <tr>
+        <td>Authentication (for Push)</td>
+        <td>Create/Edit Subscription (Push Delivery)</td>
+        <td>No authentication (for public endpoints)</td>
+        <td>Method for Pub/Sub to authenticate with your push endpoint (e.g., OIDC tokens).</td>
+      </tr>
+      <tr>
+        <td>Message Retention Duration</td>
+        <td>Create/Edit Subscription</td>
+        <td>7 days</td>
+        <td>How long Pub/Sub retains acknowledged and unacknowledged messages on the subscription. Can be 10 minutes to
+          7 days.</td>
+      </tr>
+      <tr>
+        <td>Expiration Policy</td>
+        <td>Create/Edit Subscription</td>
+        <td>31 days of inactivity</td>
+        <td>Automatically deletes the subscription if no active subscribers are consuming messages for this duration.
+        </td>
+      </tr>
+      <tr>
+        <td>Retry Policy</td>
+        <td>Create/Edit Subscription</td>
+        <td>Exponential backoff with <code>min_backoff</code> 100ms, <code>max_backoff</code> 600s</td>
+        <td>Defines how Pub/Sub retries delivery of unacknowledged messages. Options are "Immediate" or
+          "Exponential backoff."</td>
+      </tr>
+      <tr>
+        <td>Minimum Backoff Duration</td>
+        <td>Create/Edit Subscription (Retry Policy)</td>
+        <td>100 milliseconds</td>
+        <td>Smallest delay between retry attempts for exponential backoff.</td>
+      </tr>
+      <tr>
+        <td>Maximum Backoff Duration</td>
+        <td>Create/Edit Subscription (Retry Policy)</td>
+        <td>600 seconds (10 minutes)</td>
+        <td>Largest delay between retry attempts for exponential backoff.</td>
+      </tr>
+      <tr>
+        <td>Dead-Lettering Policy</td>
+        <td>Create/Edit Subscription</td>
+        <td>Disabled (by default)</td>
+        <td>Configures sending unprocessable messages to a separate dead-letter topic.</td>
+      </tr>
+      <tr>
+        <td>Dead-Letter Topic</td>
+        <td>Create/Edit Subscription (Dead-Lettering)</td>
+        <td><em>None</em> (User must select if enabled)</td>
+        <td>The topic where messages are sent after exceeding <code>max_delivery_attempts</code>.</td>
+      </tr>
+      <tr>
+        <td>Max Delivery Attempts</td>
+        <td>Create/Edit Subscription (Dead-Lettering)</td>
+        <td>5 attempts</td>
+        <td>The maximum number of times Pub/Sub will try to deliver a message before sending it to the dead-letter
+          topic.</td>
+      </tr>
+      <tr>
+        <td>Message Filtering</td>
+        <td>Create/Edit Subscription</td>
+        <td>No filter (receives all messages)</td>
+        <td>Allows the subscription to receive only messages matching a specified filter expression (based on
+          attributes).</td>
+      </tr>
+      <tr>
+        <td>Enable Message Ordering (at subscription level)</td>
+        <td>Create/Edit Subscription</td>
+        <td>Disabled (by default)</td>
+        <td>Ensures ordered delivery for messages with ordering keys for this specific subscription. Topic must also
+          have ordering enabled.</td>
+      </tr>
+    </tbody>
+  </table>
 
-<div style="border-bottom:1px solid #d7dde3"></div>
-<h1>Pub/Sub Delivery Attempt Nuances</h1>
-<p><strong>Pub/Sub and Max Delivery Attempts</strong></p>
-<ul>
-<li><p><strong>Dead-lettering:</strong> Pub/Sub determines whether a message should be moved to a dead-letter topic based on the <code>max_delivery_attempts</code> configured for the subscription. If a message fails to be acknowledged by the subscriber after this number of attempts, it&#39;s forwarded to the dead-letter topic (if configured).</p>
-</li>
-<li><p><strong>Retry Policy:</strong> Pub/Sub automatically retries message delivery if a subscriber doesn&#39;t acknowledge it. This retry behavior is not something you explicitly &quot;turn on or off&quot; but is an inherent part of how Pub/Sub ensures delivery. You can, however, configure an exponential backoff policy for retries to introduce progressively longer delays between attempts.</p>
-</li>
-</ul>
-<p><strong>How Max Delivery Attempts are Counted (Nuances for Pull and Push):</strong></p>
-<p>This is where the distinction comes in, although the underlying mechanism is designed to achieve the same goal.</p>
-<ul>
-<li><p><strong>Pull Subscriptions:</strong></p>
-<ul>
-<li>For pull subscriptions, the &quot;delivery attempt&quot; count is tracked by Pub/Sub itself.</li>
-<li>When your subscriber client pulls messages and <em>fails to acknowledge</em> them within the <code>ack_deadline</code>, Pub/Sub considers it a failed delivery attempt and will try to redeliver the message.</li>
-<li><strong>Important Nuance:</strong> The documentation mentions that the tracked number of delivery attempts for a message <em>may reset to zero</em>, especially for pull subscriptions with inactive subscribers. This means a message <em>could</em> be delivered more times than the configured <code>max_delivery_attempts</code> in certain scenarios, particularly if there are long periods of inactivity between pull requests. The intent is for it to eventually go to the dead-letter topic if it&#39;s continually failing, but it&#39;s not an absolute guarantee of a fixed number due to the distributed nature of the system and potential for resets.</li>
-</ul>
-</li>
-<li><p><strong>Push Subscriptions:</strong></p>
-<ul>
-<li>For push subscriptions, Pub/Sub delivers messages to a configured HTTPS endpoint.</li>
-<li>A successful HTTP response code (e.g., 200, 204) from your push endpoint acts as an acknowledgment.</li>
-<li>If Pub/Sub receives an error response (or no response within the <code>ack_deadline</code>), it considers it a failed delivery attempt.</li>
-<li>Pub/Sub will then retry delivering the message to the push endpoint, often with an exponential backoff.</li>
-<li>The <code>max_delivery_attempts</code> directly dictates how many times Pub/Sub will attempt to push the message before sending it to the dead-letter topic. The &quot;push backoff&quot; algorithm also plays a role in how quickly these attempts occur, slowing down delivery if there are many negative acknowledgments.</li>
-</ul>
-</li>
-</ul>
-<p><strong>In summary:</strong></p>
-<p>The <code>max_delivery_attempts</code> is the threshold for dead-lettering. While the core concept is the same, how those attempts are <em>counted and managed</em> behind the scenes can have slight differences, especially concerning the potential for delivery attempt resets in pull subscriptions under specific conditions. For both, the goal is to prevent problematic messages from indefinitely consuming resources by eventually moving them to a dead-letter topic for further investigation.</p>
+  <hr>
 
-<div style="border-bottom:1px solid #d7dde3"></div>
+  <h1>Pub/Sub Delivery Attempt Nuances</h1>
+  <p><strong>Pub/Sub and Max Delivery Attempts</strong></p>
+  <ul>
+    <li>
+      <p><strong>Dead-lettering:</strong> Pub/Sub determines whether a message should be moved to a dead-letter topic
+        based on the <code>max_delivery_attempts</code> configured for the subscription. If a message fails to be
+        acknowledged by the subscriber after this number of attempts, it's forwarded to the dead-letter topic (if
+        configured).</p>
+    </li>
+    <li>
+      <p><strong>Retry Policy:</strong> Pub/Sub automatically retries message delivery if a subscriber doesn't
+        acknowledge a message within the <code>ack_deadline</code>. The retry policy determines the timing of these retries.</p>
+    </li>
+  </ul>
+  <p><strong>How Max Delivery Attempts are Counted (Nuances for Pull and Push):</strong></p>
+  <p>This is where the distinction comes in, although the underlying mechanism is designed to achieve the same goal.</p>
+  <ul>
+    <li>
+      <p><strong>Pull Subscriptions:</strong></p>
+      <ul>
+        <li>For pull subscriptions, the "delivery attempt" count is tracked by Pub/Sub itself.</li>
+        <li>When your subscriber client pulls messages and <em>fails to acknowledge</em> them within the
+          <code>ack_deadline</code>, Pub/Sub considers it a failed delivery attempt and will try to redeliver the
+          message.</li>
+        <li><strong>Important Nuance:</strong> The documentation mentions that the tracked number of delivery attempts
+          for a message <em>may reset to zero</em>, especially for pull subscriptions with inactive subscribers. This
+          means a message <em>could</em> be delivered more times than the configured <code>max_delivery_attempts</code>
+          in certain scenarios, particularly if there are long periods of inactivity between pull requests. The intent
+          is for it to eventually go to the dead-letter topic if it's continually failing, but it's not an
+          absolute guarantee of a fixed number due to the distributed nature of the system and potential for resets.
+        </li>
+      </ul>
+    </li>
+    <li>
+      <p><strong>Push Subscriptions:</strong></p>
+      <ul>
+        <li>For push subscriptions, Pub/Sub delivers messages to a configured HTTPS endpoint.</li>
+        <li>A successful HTTP response code (e.g., 200, 204) from your push endpoint acts as an acknowledgment.</li>
+        <li>If Pub/Sub receives an error response (or no response within the <code>ack_deadline</code>), it considers it
+          a failed delivery attempt.</li>
+        <li>Pub/Sub will then retry delivering the message to the push endpoint, often with an exponential backoff.</li>
+        <li>The <code>max_delivery_attempts</code> directly dictates how many times Pub/Sub will attempt to push the
+          message before sending it to the dead-letter topic. The "push backoff" algorithm also plays a role
+          in how quickly these attempts occur, slowing down delivery if there are many negative acknowledgments.</li>
+      </ul>
+    </li>
+  </ul>
+  <p><strong>In summary:</strong></p>
+  <p>The <code>max_delivery_attempts</code> is the threshold for dead-lettering. While the core concept is the same, how
+    those attempts are <em>counted and managed</em> behind the scenes can have slight differences, especially concerning
+    the potential for delivery attempt resets in pull subscriptions under specific conditions. For both, the goal is to
+    prevent problematic messages from indefinitely consuming resources by eventually moving them to a dead-letter topic
+    for further investigation.</p>
 
-<h1>How To Process Dead Letter?</h1>
-<p>When messages are moved to a dead-letter topic in Google Cloud Pub/Sub, they essentially become messages within that new, separate topic. Therefore, retrieving them involves treating the dead-letter topic like any other Pub/Sub topic. Here&#39;s a breakdown of how to do it:</p>
-<p><strong>1. Create a Subscription to the Dead-Letter Topic:</strong></p>
-<ul>
-<li>The most fundamental step is to create a new Pub/Sub subscription that is attached to your dead-letter topic. This subscription will allow you to receive the messages that have been routed there.</li>
-<li>Just as with any Pub/Sub topic you will need to create a subscription to it, in order to consume the messages.</li>
-</ul>
-<p><strong>2. Consume Messages from the Subscription:</strong></p>
-<ul>
-<li>Once you have a subscription to the dead-letter topic, you can use your consumer application (or any other Pub/Sub client) to pull or receive messages from that subscription.</li>
-<li>This process is identical to how you would consume messages from any regular Pub/Sub subscription.</li>
-<li>You can use the Google Cloud Console, the <code>gcloud</code> command-line tool, or the Pub/Sub client libraries in your preferred programming language to consume these messages.</li>
-</ul>
-<p><strong>3. Processing Dead-Lettered Messages:</strong></p>
-<ul>
-<li>After retrieving the messages, you can then analyze them to determine why they failed to be processed by the original subscriber.</li>
-<li>Common actions include:<ul>
-<li>Inspecting the message payload and attributes to identify errors.</li>
-<li>Reprocessing the messages after fixing the underlying issues.</li>
-<li>Storing the messages for auditing or analysis.</li>
-</ul>
-</li>
-</ul>
-<p><strong>Important Considerations:</strong></p>
-<ul>
-<li><strong>Permissions:</strong><ul>
-<li>Ensure that your consumer application has the necessary permissions to pull messages from the dead-letter subscription.</li>
-</ul>
-</li>
-<li><strong>Monitoring:</strong><ul>
-<li>Monitor your dead-letter topic and its subscription to track the volume of failed messages and identify potential issues.</li>
-</ul>
-</li>
-<li><strong>Retension:</strong><ul>
-<li>Like any other pub/sub topic, dead letter topics also have retention policies. Be aware of these policies so that you do not lose messages.</li>
-</ul>
-</li>
-</ul>
-<p>In essence, accessing messages in a dead-letter topic is done by creating a subscription to that topic, and then consuming the messages from that subscription.</p>
+  <hr>
 
+  <h1>How To Process Dead Letter?</h1>
+  <p>When messages are moved to a dead-letter topic in Google Cloud Pub/Sub, they essentially become messages within
+    that new, separate topic. Therefore, retrieving them involves treating the dead-letter topic like any other Pub/Sub
+    topic. Here's a breakdown of how to do it:</p>
+  <p><strong>1. Create a Subscription to the Dead-Letter Topic:</strong></p>
+  <ul>
+    <li>The most fundamental step is to create a new Pub/Sub subscription that is attached to your dead-letter topic.
+      This subscription will allow you to receive the messages that have been routed there.</li>
+    <li>Just as with any Pub/Sub topic you will need to create a subscription to it, in order to consume the messages.
+    </li>
+  </ul>
+  <p><strong>2. Consume Messages from the Subscription:</strong></p>
+  <ul>
+    <li>Once you have a subscription to the dead-letter topic, you can use your consumer application (or any other
+      Pub/Sub client) to pull or receive messages from that subscription.</li>
+    <li>This process is identical to how you would consume messages from any regular Pub/Sub subscription.</li>
+    <li>You can use the Google Cloud Console, the <code>gcloud</code> command-line tool, or the Pub/Sub client libraries
+      in your preferred programming language to consume these messages.</li>
+  </ul>
+  <p><strong>3. Processing Dead-Lettered Messages:</strong></p>
+  <ul>
+    <li>After retrieving the messages, you can then analyze them to determine why they failed to be processed by the
+      original subscriber.</li>
+    <li>Common actions include:<ul>
+        <li>Inspecting the message payload and attributes to identify errors.</li>
+        <li>Reprocessing the messages after fixing the underlying issues.</li>
+        <li>Storing the messages for auditing or analysis.</li>
+      </ul>
+    </li>
+  </ul>
+  <p><strong>Important Considerations:</strong></p>
+  <ul>
+    <li><strong>Permissions:</strong>
+      <ul>
+        <li>Ensure that your consumer application has the necessary permissions to pull messages from the dead-letter
+          subscription.</li>
+      </ul>
+    </li>
+    <li><strong>Monitoring:</strong>
+      <ul>
+        <li>Monitor your dead-letter topic and its subscription to track the volume of failed messages and identify
+          potential issues.</li>
+      </ul>
+    </li>
+    <li><strong>Retension:</strong>
+      <ul>
+        <li>Like any other pub/sub topic, dead letter topics also have retention policies. Be aware of these policies so
+          that you do not lose messages.</li>
+      </ul>
+    </li>
+  </ul>
+  <p>In essence, accessing messages in a dead-letter topic is done by creating a subscription to that topic, and then
+    consuming the messages from that subscription.</p>
 
 </body>
+
 </html>

@@ -1,10 +1,12 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>GCP Cost Factors</title>
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/github-markdown-css/5.2.0/github-markdown-light.min.css">
+  <link rel="stylesheet"
+    href="https://cdnjs.cloudflare.com/ajax/libs/github-markdown-css/5.2.0/github-markdown-light.min.css">
   <style>
     body {
       max-width: 960px;
@@ -13,111 +15,170 @@
     }
   </style>
 </head>
+
 <body class="markdown-body">
   <h1>
-    <p> Here is a detailed table outlining the cost factors and calculation models for various popular Google Cloud Platform (GCP) resources.</p>
-</h1>
+    <p> Here is a detailed table outlining the cost factors and calculation models for various popular Google Cloud
+      Platform (GCP) resources.</p>
+  </h1>
 
-<h3 id="general-gcp-cost-principles">General GCP Cost Principles</h3>
-<p>Before diving into the table, it&#39;s important to understand a few core concepts that apply to many GCP services:</p>
-<ul>
-<li><strong>Pay-as-you-go:</strong> The primary model. You only pay for the resources you consume, with no upfront fees or termination charges.</li>
-<li><strong>Free Tiers:</strong> Many services offer a generous &quot;always free&quot; tier, which provides a certain amount of usage per month at no cost. This is great for development and small applications.</li>
-<li><strong>Committed Use Discounts (CUDs):</strong> For predictable workloads (like Cloud SQL or Compute Engine), you can commit to using a certain level of resources for a 1-year or 3-year term in exchange for a significant discount.</li>
-<li><strong>Sustained Use Discounts (SUDs):</strong> Automatically applied to certain Compute Engine resources that run for a significant portion of a billing month.</li>
-<li><strong>Network Egress:</strong> Data transfer <em>out</em> of Google&#39;s network to the internet almost always has a cost. Data transfer <em>into</em> GCP (ingress) is generally free, as is data transfer within the same region.</li>
-</ul>
-<hr>
-<h3 id="gcp-resource-cost-breakdown-table">GCP Resource Cost Breakdown Table</h3>
-<table>
-<thead>
-<tr>
-<th style="text-align:left">GCP Resource</th>
-<th style="text-align:left">Primary Cost Factors</th>
-<th style="text-align:left">Cost Calculation / Pricing Model</th>
-<th style="text-align:left">Key Considerations &amp; Cost-Saving Tips</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td style="text-align:left"><strong>Cloud Run</strong></td>
-<td style="text-align:left">• vCPU allocated per second<br>• Memory allocated per second<br>• Number of requests<br>• Outbound network egress</td>
-<td style="text-align:left">Cost = (vCPU-seconds × price) + (GiB-seconds × price) + (Requests × price) + (Egress GB × price). <br><br>You are only billed when an instance is <strong>actively processing</strong> a request.</td>
-<td style="text-align:left">• <strong>Huge Free Tier:</strong> Includes millions of requests, vCPU-seconds, and GiB-seconds per month.<br>• <strong>CPU Allocation:</strong> Set CPU to be allocated only during request processing to save costs on idle time. Use &quot;CPU always allocated&quot; only if you need background processing.</td>
-</tr>
-<tr>
-<td style="text-align:left"><strong>Cloud SQL (Postgres)</strong></td>
-<td style="text-align:left">• vCPU and Memory (Instance size)<br>• Storage type (SSD/HDD) and amount<br>• Backups<br>• High Availability (HA) configuration<br>• Network egress</td>
-<td style="text-align:left">Billed per hour for provisioned resources. <br><br>Cost = (vCPU-hours × price) + (GB-hours of RAM × price) + (GB-month of storage × price) + (GB-month of backups × price).</td>
-<td style="text-align:left">• <strong>Committed Use Discounts (CUDs)</strong> offer significant savings (up to 52%) for 1 or 3-year commitments.<br>• Enabling High Availability (HA) <strong>doubles</strong> the instance cost (vCPU, RAM).<br>• Shut down development instances when not in use.</td>
-</tr>
-<tr>
-<td style="text-align:left"><strong>Pub/Sub</strong></td>
-<td style="text-align:left">• Message data volume (ingestion &amp; delivery)<br>• Snapshot storage<br>• Message retention storage</td>
-<td style="text-align:left">Priced per TiB of data processed. <br><br>Cost = (TiB of message data × price).</td>
-<td style="text-align:left">• <strong>Free Tier:</strong> First 10 GiB of message data per month is free.<br>• <strong>Pub/Sub Lite:</strong> A lower-cost, zonal alternative for high-volume streaming if you don&#39;t need all the features of standard Pub/Sub (like ordering keys or exactly-once delivery).</td>
-</tr>
-<tr>
-<td style="text-align:left"><strong>Apigee</strong></td>
-<td style="text-align:left">• API calls<br>• Number of Apigee environments<br>• Network egress<br>• Advanced features (API Security, etc.)</td>
-<td style="text-align:left">Multiple models: <br>• <strong>Pay-as-you-go:</strong> Cost per 1,000 API calls. <br>• <strong>Subscription:</strong> Enterprise-grade packages with fixed capacity and features.<br>• <strong>Evaluation:</strong> Free tier for trying out the platform.</td>
-<td style="text-align:left">• Apigee is an enterprise product with a higher price point than most other services on this list.<br>• Understand your API traffic patterns to choose the right model. The pay-as-you-go option is excellent for starting out.</td>
-</tr>
-<tr>
-<td style="text-align:left"><strong>Cloud Logging</strong></td>
-<td style="text-align:left">• Log volume ingested<br>• Log storage duration (retention)</td>
-<td style="text-align:left">• <strong>Ingestion:</strong> Priced per GiB ingested after the free tier.<br>• <strong>Storage:</strong> Priced per GiB-month for logs retained beyond the default 30 days.</td>
-<td style="text-align:left">• <strong>Massive Free Tier:</strong> 50 GiB of log ingestion and storage per project per month is free.<br>• <strong>Exclude verbose logs:</strong> The key to managing cost is to configure sinks to exclude high-volume, low-value logs (e.g., debug logs from production).</td>
-</tr>
-<tr>
-<td style="text-align:left"><strong>Cloud Build</strong></td>
-<td style="text-align:left">• Build time (in minutes)<br>• Machine type of the build worker</td>
-<td style="text-align:left">Priced per build-minute. The cost per minute varies based on the performance (vCPU/RAM) of the machine type you select for the build.</td>
-<td style="text-align:left">• <strong>Free Tier:</strong> Includes 120 free build-minutes per day.<br>• Choose the smallest machine type that can reliably complete your build to minimize cost. Don&#39;t use a high-CPU machine for a simple linting job.</td>
-</tr>
-<tr>
-<td style="text-align:left"><strong>Secret Manager</strong></td>
-<td style="text-align:left">• Number of active secret versions<br>• Access operations</td>
-<td style="text-align:left">• <strong>Versions:</strong> Priced per active secret version per month.<br>• <strong>Access:</strong> Priced per 10,000 access operations.</td>
-<td style="text-align:left">• <strong>Very Generous Free Tier:</strong> Includes 6 free secret versions and 10,000 free access operations per month, making it effectively free for many small-to-medium projects.</td>
-</tr>
-<tr>
-<td style="text-align:left"><strong>IAM</strong></td>
-<td style="text-align:left"><em>(None)</em></td>
-<td style="text-align:left"><strong>Free.</strong></td>
-<td style="text-align:left">• The core IAM service (assigning roles and permissions to users, groups, and service accounts) is free of charge. It&#39;s a fundamental part of the GCP platform.</td>
-</tr>
-<tr>
-<td style="text-align:left"><strong>Memorystore for Redis</strong></td>
-<td style="text-align:left">• Service Tier (Basic vs. Standard HA)<br>• Capacity (GB of memory provisioned)<br>• Region</td>
-<td style="text-align:left">Billed per GB-hour for provisioned capacity. The rate depends on the service tier and region.</td>
-<td style="text-align:left">• You pay for <strong>provisioned capacity</strong>, not usage. Size your instance correctly.<br>• The <strong>Standard Tier (HA)</strong> costs roughly double the Basic Tier because it runs a redundant replica.<br>• Use Basic Tier for development and caching where data loss is acceptable.</td>
-</tr>
-<tr>
-<td style="text-align:left"><strong>BigQuery</strong></td>
-<td style="text-align:left">• <strong>Analysis:</strong> Data scanned by queries (On-Demand) OR provisioned compute slots (Flat-Rate)<br>• <strong>Storage:</strong> Active and Long-Term storage<br>• <strong>Streaming Inserts</strong></td>
-<td style="text-align:left">• <strong>On-Demand Analysis:</strong> Priced per TiB of data scanned.<br>• <strong>Flat-Rate Analysis:</strong> Fixed hourly/monthly cost for dedicated processing capacity (slots).<br>• <strong>Storage:</strong> Priced per GB-month (Long-term storage is ~50% cheaper).</td>
-<td style="text-align:left">• <strong>Partition and Cluster tables:</strong> This is the #1 way to reduce on-demand query costs by limiting the data scanned.<br>• Data automatically moves to &quot;Long-term storage&quot; if a table/partition isn&#39;t modified for 90 days.</td>
-</tr>
-<tr>
-<td style="text-align:left"><strong>Cloud Storage</strong></td>
-<td style="text-align:left">• Storage class (e.g., Standard, Nearline, Coldline)<br>• Data volume stored<br>• Operations (e.g., GET, PUT, LIST)<br>• Network egress</td>
-<td style="text-align:left">Cost = (GB-month of data × price) + (Operations × price) + (Egress GB × price). <br><br>Prices for all factors <strong>vary dramatically</strong> by storage class.</td>
-<td style="text-align:left">• <strong>Choose the right storage class:</strong> Use Standard for frequently accessed data, Nearline/Coldline for backups and archives to save heavily on storage costs.<br>• Use Lifecycle Policies to automatically transition objects to cheaper storage classes.</td>
-</tr>
-<tr>
-<td style="text-align:left"><strong>Artifact Registry</strong></td>
-<td style="text-align:left">• Storage used<br>• Network egress</td>
-<td style="text-align:left">• <strong>Storage:</strong> Priced per GB-month.<br>• <strong>Network Egress:</strong> Priced per GB transferred out.</td>
-<td style="text-align:left">• <strong>Free Tier:</strong> Includes a small amount of free storage per month.<br>• It&#39;s the recommended replacement for Container Registry. Its pricing model is simpler and aligns with Cloud Storage.</td>
-</tr>
-</tbody>
-</table>
-<hr>
-<h3 id="general-recommendations-for-cost-management">General Recommendations for Cost Management</h3>
-<ol>
-<li><strong>Use the Google Cloud Pricing Calculator:</strong> Before deploying, model your expected usage to get a cost estimate.</li>
-<li><strong>Set Budgets and Alerts:</strong> In the GCP Console, create a budget for your project or billing account and set alert thresholds (e.g., notify me when I&#39;ve spent 50% and 90% of my budget).</li>
-<li><strong>Use Labels:</strong> Apply labels to your resources (e.g., <code>env:dev</code>, <code>team:backend</code>) to break down your bill and see which projects, teams, or applications are driving costs.</li>
-<li><strong>Review Cost Recommendations:</strong> Google Cloud&#39;s &quot;Active Assist&quot; automatically provides recommendations for rightsizing instances or identifying idle resources.</li>
-</ol>
+  <h3 id="general-gcp-cost-principles">General GCP Cost Principles</h3>
+  <p>Before diving into the table, it&#39;s important to understand a few core concepts that apply to many GCP services:
+  </p>
+  <ul>
+    <li><strong>Pay-as-you-go:</strong> The primary model. You only pay for the resources you consume, with no upfront
+      fees or termination charges.</li>
+    <li><strong>Free Tiers:</strong> Many services offer a generous &quot;always free&quot; tier, which provides a
+      certain amount of usage per month at no cost. This is great for development and small applications.</li>
+    <li><strong>Committed Use Discounts (CUDs):</strong> For predictable workloads (like Cloud SQL or Compute Engine),
+      you can commit to using a certain level of resources for a 1-year or 3-year term in exchange for a significant
+      discount.</li>
+    <li><strong>Sustained Use Discounts (SUDs):</strong> Automatically applied to certain Compute Engine resources that
+      run for a significant portion of a billing month.</li>
+    <li><strong>Network Egress:</strong> Data transfer <em>out</em> of Google&#39;s network to the internet almost
+      always has a cost. Data transfer <em>into</em> GCP (ingress) is generally free, as is data transfer within the
+      same region.</li>
+  </ul>
+  <hr>
+  <h3 id="gcp-resource-cost-breakdown-table">GCP Resource Cost Breakdown Table</h3>
+  <table>
+    <thead>
+      <tr>
+        <th style="text-align:left">GCP Resource</th>
+        <th style="text-align:left">Primary Cost Factors</th>
+        <th style="text-align:left">Cost Calculation / Pricing Model</th>
+        <th style="text-align:left">Key Considerations &amp; Cost-Saving Tips</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td style="text-align:left"><strong>Cloud Run</strong></td>
+        <td style="text-align:left">• vCPU allocated per second<br>• Memory allocated per second<br>• Number of
+          requests<br>• Outbound network egress</td>
+        <td style="text-align:left">Cost = (vCPU-seconds × price) + (GiB-seconds × price) + (Requests × price) + (Egress
+          GB × price). <br><br>You are only billed when an instance is <strong>actively processing</strong> a request.
+        </td>
+        <td style="text-align:left">• <strong>Huge Free Tier:</strong> Includes millions of requests, vCPU-seconds, and
+          GiB-seconds per month.<br>• <strong>CPU Allocation:</strong> Set CPU to be allocated only during request
+          processing to save costs on idle time. Use &quot;CPU always allocated&quot; only if you need background
+          processing.</td>
+      </tr>
+      <tr>
+        <td style="text-align:left"><strong>Cloud SQL (Postgres)</strong></td>
+        <td style="text-align:left">• vCPU and Memory (Instance size)<br>• Storage type (SSD/HDD) and amount<br>•
+          Backups<br>• High Availability (HA) configuration<br>• Network egress</td>
+        <td style="text-align:left">Billed per hour for provisioned resources. <br><br>Cost = (vCPU-hours × price) +
+          (GB-hours of RAM × price) + (GB-month of storage × price) + (GB-month of backups × price).</td>
+        <td style="text-align:left">• <strong>Committed Use Discounts (CUDs)</strong> offer significant savings (up to
+          52%) for 1 or 3-year commitments.<br>• Enabling High Availability (HA) <strong>doubles</strong> the instance
+          cost (vCPU, RAM).<br>• Shut down development instances when not in use.</td>
+      </tr>
+      <tr>
+        <td style="text-align:left"><strong>Pub/Sub</strong></td>
+        <td style="text-align:left">• Message data volume (ingestion &amp; delivery)<br>• Snapshot storage<br>• Message
+          retention storage</td>
+        <td style="text-align:left">Priced per TiB of data processed. <br><br>Cost = (TiB of message data × price).</td>
+        <td style="text-align:left">• <strong>Free Tier:</strong> First 10 GiB of message data per month is free.<br>•
+          <strong>Pub/Sub Lite:</strong> A lower-cost, zonal alternative for high-volume streaming if you don&#39;t need
+          all the features of standard Pub/Sub (like ordering keys or exactly-once delivery).</td>
+      </tr>
+      <tr>
+        <td style="text-align:left"><strong>Apigee</strong></td>
+        <td style="text-align:left">• API calls<br>• Number of Apigee environments<br>• Network egress<br>• Advanced
+          features (API Security, etc.)</td>
+        <td style="text-align:left">Multiple models: <br>• <strong>Pay-as-you-go:</strong> Cost per 1,000 API calls.
+          <br>• <strong>Subscription:</strong> Enterprise-grade packages with fixed capacity and features.<br>•
+          <strong>Evaluation:</strong> Free tier for trying out the platform.</td>
+        <td style="text-align:left">• Apigee is an enterprise product with a higher price point than most other services
+          on this list.<br>• Understand your API traffic patterns to choose the right model. The pay-as-you-go option is
+          excellent for starting out.</td>
+      </tr>
+      <tr>
+        <td style="text-align:left"><strong>Cloud Logging</strong></td>
+        <td style="text-align:left">• Log volume ingested<br>• Log storage duration (retention)</td>
+        <td style="text-align:left">• <strong>Ingestion:</strong> Priced per GiB ingested after the free tier.<br>•
+          <strong>Storage:</strong> Priced per GiB-month for logs retained beyond the default 30 days.</td>
+        <td style="text-align:left">• <strong>Massive Free Tier:</strong> 50 GiB of log ingestion and storage per
+          project per month is free.<br>• <strong>Exclude verbose logs:</strong> The key to managing cost is to
+          configure sinks to exclude high-volume, low-value logs (e.g., debug logs from production).</td>
+      </tr>
+      <tr>
+        <td style="text-align:left"><strong>Cloud Build</strong></td>
+        <td style="text-align:left">• Build time (in minutes)<br>• Machine type of the build worker</td>
+        <td style="text-align:left">Priced per build-minute. The cost per minute varies based on the performance
+          (vCPU/RAM) of the machine type you select for the build.</td>
+        <td style="text-align:left">• <strong>Free Tier:</strong> Includes 120 free build-minutes per day.<br>• Choose
+          the smallest machine type that can reliably complete your build to minimize cost. Don&#39;t use a high-CPU
+          machine for a simple linting job.</td>
+      </tr>
+      <tr>
+        <td style="text-align:left"><strong>Secret Manager</strong></td>
+        <td style="text-align:left">• Number of active secret versions<br>• Access operations</td>
+        <td style="text-align:left">• <strong>Versions:</strong> Priced per active secret version per month.<br>•
+          <strong>Access:</strong> Priced per 10,000 access operations.</td>
+        <td style="text-align:left">• <strong>Very Generous Free Tier:</strong> Includes 6 free secret versions and
+          10,000 free access operations per month, making it effectively free for many small-to-medium projects.</td>
+      </tr>
+      <tr>
+        <td style="text-align:left"><strong>IAM</strong></td>
+        <td style="text-align:left"><em>(None)</em></td>
+        <td style="text-align:left"><strong>Free.</strong></td>
+        <td style="text-align:left">• The core IAM service (assigning roles and permissions to users, groups, and
+          service accounts) is free of charge. It&#39;s a fundamental part of the GCP platform.</td>
+      </tr>
+      <tr>
+        <td style="text-align:left"><strong>Memorystore for Redis</strong></td>
+        <td style="text-align:left">• Service Tier (Basic vs. Standard HA)<br>• Capacity (GB of memory provisioned)<br>•
+          Region</td>
+        <td style="text-align:left">Billed per GB-hour for provisioned capacity. The rate depends on the service tier
+          and region.</td>
+        <td style="text-align:left">• You pay for <strong>provisioned capacity</strong>, not usage. Size your instance
+          correctly.<br>• The <strong>Standard Tier (HA)</strong> costs roughly double the Basic Tier because it runs a
+          redundant replica.<br>• Use Basic Tier for development and caching where data loss is acceptable.</td>
+      </tr>
+      <tr>
+        <td style="text-align:left"><strong>BigQuery</strong></td>
+        <td style="text-align:left">• <strong>Analysis:</strong> Data scanned by queries (On-Demand) OR provisioned
+          compute slots (Flat-Rate)<br>• <strong>Storage:</strong> Active and Long-Term storage<br>• <strong>Streaming
+            Inserts</strong></td>
+        <td style="text-align:left">• <strong>On-Demand Analysis:</strong> Priced per TiB of data scanned.<br>•
+          <strong>Flat-Rate Analysis:</strong> Fixed hourly/monthly cost for dedicated processing capacity (slots).<br>•
+          <strong>Storage:</strong> Priced per GB-month (Long-term storage is ~50% cheaper).</td>
+        <td style="text-align:left">• <strong>Partition and Cluster tables:</strong> This is the #1 way to reduce
+          on-demand query costs by limiting the data scanned.<br>• Data automatically moves to &quot;Long-term
+          storage&quot; if a table/partition isn&#39;t modified for 90 days.</td>
+      </tr>
+      <tr>
+        <td style="text-align:left"><strong>Cloud Storage</strong></td>
+        <td style="text-align:left">• Storage class (e.g., Standard, Nearline, Coldline)<br>• Data volume stored<br>•
+          Operations (e.g., GET, PUT, LIST)<br>• Network egress</td>
+        <td style="text-align:left">Cost = (GB-month of data × price) + (Operations × price) + (Egress GB × price).
+          <br><br>Prices for all factors <strong>vary dramatically</strong> by storage class.</td>
+        <td style="text-align:left">• <strong>Choose the right storage class:</strong> Use Standard for frequently
+          accessed data, Nearline/Coldline for backups and archives to save heavily on storage costs.<br>• Use Lifecycle
+          Policies to automatically transition objects to cheaper storage classes.</td>
+      </tr>
+      <tr>
+        <td style="text-align:left"><strong>Artifact Registry</strong></td>
+        <td style="text-align:left">• Storage used<br>• Network egress</td>
+        <td style="text-align:left">• <strong>Storage:</strong> Priced per GB-month.<br>• <strong>Network
+            Egress:</strong> Priced per GB transferred out.</td>
+        <td style="text-align:left">• <strong>Free Tier:</strong> Includes a small amount of free storage per
+          month.<br>• It&#39;s the recommended replacement for Container Registry. Its pricing model is simpler and
+          aligns with Cloud Storage.</td>
+      </tr>
+    </tbody>
+  </table>
+  <hr>
+  <h3 id="general-recommendations-for-cost-management">General Recommendations for Cost Management</h3>
+  <ol>
+    <li><strong>Use the Google Cloud Pricing Calculator:</strong> Before deploying, model your expected usage to get a
+      cost estimate.</li>
+    <li><strong>Set Budgets and Alerts:</strong> In the GCP Console, create a budget for your project or billing account
+      and set alert thresholds (e.g., notify me when I&#39;ve spent 50% and 90% of my budget).</li>
+    <li><strong>Use Labels:</strong> Apply labels to your resources (e.g., <code>env:dev</code>,
+      <code>team:backend</code>) to break down your bill and see which projects, teams, or applications are driving
+      costs.</li>
+    <li><strong>Review Cost Recommendations:</strong> Google Cloud&#39;s &quot;Active Assist&quot; automatically
+      provides recommendations for rightsizing instances or identifying idle resources.</li>
+  </ol>

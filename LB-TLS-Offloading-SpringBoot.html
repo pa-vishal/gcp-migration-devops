@@ -1,10 +1,12 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Load Balancers TLS Offloading</title>
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/github-markdown-css/5.2.0/github-markdown-light.min.css">
+  <link rel="stylesheet"
+    href="https://cdnjs.cloudflare.com/ajax/libs/github-markdown-css/5.2.0/github-markdown-light.min.css">
   <style>
     body {
       max-width: 960px;
@@ -13,153 +15,255 @@
     }
   </style>
 </head>
+
 <body class="markdown-body">
-<h1>
-  <p>How Does TLS Offloading Work</p>
-</h1>
-<p> <strong> TLS (Transport Layer Security) </strong>, formerly known as SSL (Secure Sockets Layer), offloading is a technique used in web infrastructure to move the computationally intensive task of encrypting and decrypting TLS traffic away from backend application servers to a dedicated device, typically a load balancer or an Application Delivery Controller (ADC).</p>
-<p>Here&#39;s a breakdown of how it works:</p>
-<p><strong>The Problem TLS Offloading Solves</strong></p>
-<ul>
-<li><strong>CPU Intensive:</strong> Establishing a TLS connection and encrypting/decrypting data requires significant CPU resources. This involves complex cryptographic operations like asymmetric key exchanges (for the initial handshake) and symmetric key encryption/decryption (for data transfer).</li>
-<li><strong>Performance Bottleneck:</strong> When application servers are burdened with TLS processing, their ability to handle other application-specific tasks (like serving web pages or processing business logic) can be degraded, leading to slower response times and reduced overall performance.</li>
-<li><strong>Scalability Challenges:</strong> As traffic increases, the CPU load from TLS can become a bottleneck, limiting the number of concurrent connections an application server can handle.</li>
-</ul>
-<p><strong>How TLS Offloading Works</strong></p>
-<ol>
-<li><strong>Client Initiates TLS Handshake:</strong> A client (e.g., a web browser) attempts to establish a secure HTTPS connection to a website.</li>
-<li><strong>Load Balancer/ADC Intercepts:</strong> Instead of the request going directly to the backend server, a load balancer or ADC (configured for TLS offloading) intercepts the incoming encrypted traffic.</li>
-<li><strong>TLS Termination:</strong> The load balancer performs the TLS handshake with the client. This means the load balancer:<ul>
-<li>Receives the client&#39;s &quot;Client Hello&quot; message.</li>
-<li>Sends its own &quot;Server Hello&quot; message, including its public key and the server&#39;s TLS certificate.</li>
-<li>Negotiates the encryption algorithms and session keys with the client.</li>
-<li>Uses its own private key to decrypt the encrypted symmetric key from the client.</li>
-<li>Establishes a secure, encrypted connection with the client.</li>
-</ul>
-</li>
-<li><strong>Decryption:</strong> Once the TLS connection with the client is established, the load balancer decrypts the incoming application data. At this point, the traffic is in plaintext.</li>
-<li><strong>Forward to Backend (Unencrypted or Re-encrypted):</strong><ul>
-<li><strong>Unencrypted (most common):</strong> The decrypted, unencrypted traffic is then forwarded to one of the backend application servers. This is the most common scenario, especially in a trusted internal network, as it completely offloads the cryptographic burden from the backend servers.</li>
-<li><strong>Re-encrypted (TLS Bridging/End-to-End Encryption):</strong> In scenarios where stricter security is required for internal communication (e.g., in a zero-trust environment or for highly sensitive data), the load balancer can <em>re-encrypt</em> the traffic using a separate TLS connection before sending it to the backend server. This is often called &quot;TLS bridging.&quot; While it adds a bit more overhead, it ensures end-to-end encryption.</li>
-</ul>
-</li>
-<li><strong>Backend Processes Request:</strong> The backend application server receives the request as plain HTTP (or re-encrypted HTTPS), processes it, and sends the response back to the load balancer.</li>
-<li><strong>Re-encryption (for client response):</strong> If the load balancer terminated the TLS connection, it will then encrypt the backend server&#39;s response and send it back to the client over the established secure TLS connection.</li>
-</ol>
-<p><strong>Benefits of TLS Offloading</strong></p>
-<ul>
-<li><strong>Improved Server Performance:</strong> By offloading CPU-intensive TLS operations, backend servers can dedicate their resources to their primary function: serving applications. This leads to faster response times and higher throughput.</li>
-<li><strong>Increased Scalability:</strong> Servers can handle more concurrent connections and requests because they are not bogged down by encryption/decryption.</li>
-<li><strong>Simplified Certificate Management:</strong> TLS certificates (and their private keys) are managed centrally on the load balancer or ADC, rather than on each individual backend server. This simplifies deployment, renewal, and revocation of certificates.</li>
-<li><strong>Enhanced Security Capabilities:</strong><ul>
-<li><strong>Centralized Security Policy:</strong> The load balancer can enforce security policies (like specific TLS versions or cipher suites) consistently across all backend servers.</li>
-<li><strong>Deep Packet Inspection (DPI):</strong> Since the load balancer decrypts the traffic, it can perform deep packet inspection to analyze the content for malware, unauthorized access attempts, or other security threats before forwarding it to the backend.</li>
-<li><strong>Web Application Firewall (WAF) Integration:</strong> Many load balancers with TLS offloading capabilities also offer WAF features to protect against common web attacks.</li>
-<li><strong>DDoS Mitigation:</strong> The load balancer can absorb and mitigate TLS-based DDoS attacks before they reach the backend servers.</li>
-</ul>
-</li>
-</ul>
-<p><strong>Drawbacks/Considerations</strong></p>
-<ul>
-<li><strong>Traffic in Cleartext (if not re-encrypted):</strong> The most significant concern is that the traffic between the load balancer and the backend servers is often in cleartext. If the internal network is not adequately secured, this could be a security vulnerability. This is why TLS bridging (re-encryption) or a highly trusted internal network is crucial for sensitive data.</li>
-<li><strong>Single Point of Failure (without redundancy):</strong> If the load balancer performing TLS offloading is not highly available, its failure could disrupt all secure traffic. Proper redundancy is essential.</li>
-<li><strong>Increased Complexity:</strong> Implementing TLS offloading adds another component to the network architecture, which can introduce complexity in configuration and troubleshooting.</li>
-<li><strong>Potential for Performance Bottleneck (at the offloader):</strong> While it offloads the burden from backend servers, the load balancer itself needs sufficient processing power to handle the TLS workload, especially for high-traffic sites.</li>
-<li><strong>Certificate Management:</strong> While centralized, managing certificates on the offloader still requires careful attention to security, especially for the private keys.</li>
-</ul>
-<p>Overall, TLS offloading is a widely adopted and highly effective technique for optimizing web application performance and enhancing security in modern network architectures.</p>
+  <h1>How Does TLS Offloading Work</h1>
+  <p><strong>TLS (Transport Layer Security)</strong>, formerly known as SSL (Secure Sockets Layer), offloading is a
+    technique used in web infrastructure to move the computationally intensive task of encrypting and decrypting TLS
+    traffic away from backend application servers to a dedicated device, typically a load balancer or an Application
+    Delivery Controller (ADC).</p>
+  <p>Here's a breakdown of how it works:</p>
 
-<div> </div>
-<h1>
-  <p>How load balancer is used for TLS offloading ? 
-</p>
-</h1>
+  <h3 id="the-problem-tls-offloading-solves">The Problem TLS Offloading Solves</h3>
+  <ul>
+    <li><strong>CPU Intensive:</strong> Establishing a TLS connection and encrypting/decrypting data requires
+      significant CPU resources. This involves complex cryptographic operations like asymmetric key exchanges (for the
+      initial handshake) and symmetric key encryption/decryption (for data transfer).</li>
+    <li><strong>Performance Bottleneck:</strong> When application servers are burdened with TLS processing, their
+      ability to handle other application-specific tasks (like serving web pages or processing business logic) can be
+      degraded, leading to slower response times and reduced overall performance.</li>
+    <li><strong>Scalability Challenges:</strong> As traffic increases, the CPU load from TLS can become a bottleneck,
+      limiting the number of concurrent connections an application server can handle.</li>
+  </ul>
 
-<h3>
+  <h3 id="how-tls-offloading-works">How TLS Offloading Works</h3>
+  <ol>
+    <li><strong>Client Initiates TLS Handshake:</strong> A client (e.g., a web browser) attempts to establish a secure
+      HTTPS connection to a website.</li>
+    <li><strong>Load Balancer/ADC Intercepts:</strong> Instead of the request going directly to the backend server, a
+      load balancer or ADC (configured for TLS offloading) intercepts the incoming encrypted traffic.</li>
+    <li><strong>TLS Termination:</strong> The load balancer performs the TLS handshake with the client. This means the
+      load balancer:
+      <ul>
+        <li>Receives the client's "Client Hello" message.</li>
+        <li>Sends its own "Server Hello" message, including its public key and the server's TLS certificate.</li>
+        <li>Negotiates the encryption algorithms and session keys with the client.</li>
+        <li>Uses its own private key to decrypt the encrypted symmetric key from the client.</li>
+        <li>Establishes a secure, encrypted connection with the client.</li>
+      </ul>
+    </li>
+    <li><strong>Decryption:</strong> Once the TLS connection with the client is established, the load balancer decrypts
+      the incoming application data. At this point, the traffic is in plaintext.</li>
+    <li><strong>Forward to Backend (Unencrypted or Re-encrypted):</strong>
+      <ul>
+        <li><strong>Unencrypted (most common):</strong> The decrypted, unencrypted traffic is then forwarded to one of
+          the backend application servers. This is the most common scenario, especially in a trusted internal network,
+          as it completely offloads the cryptographic burden from the backend servers.</li>
+        <li><strong>Re-encrypted (TLS Bridging/End-to-End Encryption):</strong> In scenarios where stricter security is
+          required for internal communication (e.g., in a zero-trust environment or for highly sensitive data), the load
+          balancer can <em>re-encrypt</em> the traffic using a separate TLS connection before sending it to the backend
+          server. This is often called "TLS bridging." While it adds a bit more overhead, it ensures end-to-end
+          encryption.</li>
+      </ul>
+    </li>
+    <li><strong>Backend Processes Request:</strong> The backend application server receives the request as plain HTTP
+      (or re-encrypted HTTPS), processes it, and sends the response back to the load balancer.</li>
+    <li><strong>Re-encryption (for client response):</strong> If the load balancer terminated the TLS connection, it
+      will then encrypt the backend server's response and send it back to the client over the established secure TLS
+      connection.</li>
+  </ol>
 
-<p>If the backend application is a java spring boot application , how it behaves in these two cases- when TLS offloading happens as a result of use of load balancer and when not used? For example, does it automatically knows whether TLS offloading has happened vs not happened?
-</p>
-</h3>
-<p>You&#39;ve hit on a critical point in system design that often causes confusion! Let&#39;s break down how TLS offloading works with a load balancer and how a Spring Boot application behaves in both scenarios.</p>
-<h3 id="how-load-balancers-perform-tls-offloading">How Load Balancers Perform TLS Offloading</h3>
-<p>As we discussed, TLS offloading (or TLS termination) shifts the burden of cryptographic operations from your backend servers to the load balancer. Here&#39;s a typical flow:</p>
-<ol>
-<li><strong>Client (Browser) initiates HTTPS connection:</strong> The client sends an HTTPS request to the load balancer&#39;s public IP address and port (usually 443).</li>
-<li><strong>Load Balancer performs TLS Handshake:</strong><ul>
-<li>The load balancer, configured with your domain&#39;s TLS certificate and private key, performs the full TLS handshake with the client.</li>
-<li>It encrypts and decrypts all communication with the client.</li>
-</ul>
-</li>
-<li><strong>Load Balancer decrypts traffic:</strong> After the handshake, the load balancer decrypts the incoming HTTPS request. At this point, the request is in plain HTTP.</li>
-<li><strong>Load Balancer forwards traffic:</strong> The load balancer then forwards the <em>decrypted</em> HTTP request to one of the healthy backend Spring Boot application instances.</li>
-<li><strong>Backend processes request:</strong> The Spring Boot application receives the request as if it were a regular HTTP request. It processes the request and generates an HTTP response.</li>
-<li><strong>Load Balancer re-encrypts response:</strong> The load balancer receives the HTTP response from the backend, re-encrypts it using the established TLS session with the client, and sends it back to the client.</li>
-</ol>
-<p><strong>Key point:</strong> The connection between the load balancer and the backend application is often <em>unencrypted</em> (plain HTTP) by default in TLS offloading scenarios. This is because the internal network segment between the load balancer and your application servers is typically considered a trusted, private network within your cloud provider&#39;s infrastructure. However, for enhanced security (e.g., in highly regulated environments or zero-trust architectures), you can configure &quot;TLS bridging&quot; or &quot;end-to-end encryption,&quot; where the load balancer re-encrypts the traffic before sending it to the backend.</p>
-<h3 id="spring-boot-application-behavior">Spring Boot Application Behavior</h3>
-<p>This is where the &quot;automatic knowledge&quot; comes into play, or rather, the lack thereof, and how to configure it correctly.</p>
-<h4 id="case-1-tls-offloading-is-used-load-balancer-terminates-tls-">Case 1: TLS Offloading IS Used (Load Balancer Terminates TLS)</h4>
-<ul>
-<li><p><strong>Spring Boot&#39;s Default Behavior:</strong> By default, a Spring Boot application running on an embedded server (like Tomcat, Jetty, or Undertow) looks at the <code>HttpServletRequest.isSecure()</code> method to determine if the request came over HTTPS. When TLS is offloaded, the load balancer typically forwards the request to the backend using plain HTTP. Therefore, <code>isSecure()</code> will return <code>false</code>.</p>
-</li>
-<li><p><strong>The Problem:</strong> If your application, or components like Spring Security, rely on <code>isSecure()</code> to enforce HTTPS redirects or secure cookie flags, it will incorrectly assume the original request was insecure. This can lead to:</p>
-<ul>
-<li><strong>Infinite Redirect Loops:</strong> If your Spring Security configuration automatically redirects HTTP requests to HTTPS, and the application doesn&#39;t know TLS offloading is happening, it will receive an HTTP request, try to redirect to HTTPS, the load balancer will terminate TLS, send it as HTTP again, and the loop continues.</li>
-<li><strong>Insecure Cookies:</strong> Cookies might be sent without the <code>Secure</code> flag, making them vulnerable to interception if they were ever exposed on an insecure channel (though in a TLS offloading setup, the client-to-LB connection is secure).</li>
-<li><strong>Incorrect <code>HttpServletRequest.getRequestURL()</code>:</strong> The <code>getRequestURL()</code> method might return an <code>http://</code> URL instead of <code>https://</code>.</li>
-</ul>
-</li>
-<li><p><strong>How to Make Spring Boot &quot;Know&quot;:</strong> This is where <strong><code>X-Forwarded-*</code> headers</strong> come in. Load balancers (like Google Cloud Load Balancers, AWS ALBs, NGINX, HAProxy, etc.) are designed to pass along information about the <em>original</em> client request using these standard headers:</p>
-<ul>
-<li><strong><code>X-Forwarded-Proto</code>:</strong> Indicates the protocol (e.g., <code>https</code>) that the client used to connect to the load balancer.</li>
-<li><strong><code>X-Forwarded-For</code>:</strong> Indicates the original client&#39;s IP address.</li>
-<li><strong><code>X-Forwarded-Host</code>:</strong> Indicates the original host header requested by the client.</li>
-</ul>
-<p>Spring Boot&#39;s embedded servers (Tomcat, Jetty, Undertow) are typically configured to honor these headers. For Tomcat (which Spring Boot uses by default), this is handled by the <code>RemoteIpValve</code>.</p>
-<p><strong>Configuration in <code>application.properties</code> (for Spring Boot):</strong></p>
-<pre><code class="lang-properties">server.forward-headers-strategy=FRAMEWORK
+  <h3 id="benefits-of-tls-offloading">Benefits of TLS Offloading</h3>
+  <ul>
+    <li><strong>Improved Server Performance:</strong> By offloading CPU-intensive TLS operations, backend servers can
+      dedicate their resources to their primary function: serving applications. This leads to faster response times and
+      higher throughput.</li>
+    <li><strong>Increased Scalability:</strong> Servers can handle more concurrent connections and requests because they
+      are not bogged down by encryption/decryption.</li>
+    <li><strong>Simplified Certificate Management:</strong> TLS certificates (and their private keys) are managed
+      centrally on the load balancer or ADC, rather than on each individual backend server. This simplifies deployment,
+      renewal, and revocation of certificates.</li>
+    <li><strong>Enhanced Security Capabilities:</strong>
+      <ul>
+        <li><strong>Centralized Security Policy:</strong> The load balancer can enforce security policies (like specific
+          TLS versions or cipher suites) consistently across all backend servers.</li>
+        <li><strong>Deep Packet Inspection (DPI):</strong> Since the load balancer decrypts the traffic, it can perform
+          deep packet inspection to analyze the content for malware, unauthorized access attempts, or other security
+          threats before forwarding it to the backend.</li>
+        <li><strong>Web Application Firewall (WAF) Integration:</strong> Many load balancers with TLS offloading
+          capabilities also offer WAF features to protect against common web attacks.</li>
+        <li><strong>DDoS Mitigation:</strong> The load balancer can absorb and mitigate TLS-based DDoS attacks before
+          they reach the backend servers.</li>
+      </ul>
+    </li>
+  </ul>
+
+  <h3 id="drawbacks-considerations">Drawbacks/Considerations</h3>
+  <ul>
+    <li><strong>Traffic in Cleartext (if not re-encrypted):</strong> The most significant concern is that the traffic
+      between the load balancer and the backend servers is often in cleartext. If the internal network is not adequately
+      secured, this could be a security vulnerability. This is why TLS bridging (re-encryption) or a highly trusted
+      internal network is crucial for sensitive data.</li>
+    <li><strong>Single Point of Failure (without redundancy):</strong> If the load balancer performing TLS offloading is
+      not highly available, its failure could disrupt all secure traffic. Proper redundancy is essential.</li>
+    <li><strong>Increased Complexity:</strong> Implementing TLS offloading adds another component to the network
+      architecture, which can introduce complexity in configuration and troubleshooting.</li>
+    <li><strong>Potential for Performance Bottleneck (at the offloader):</strong> While it offloads the burden from
+      backend servers, the load balancer itself needs sufficient processing power to handle the TLS workload, especially
+      for high-traffic sites.</li>
+    <li><strong>Certificate Management:</strong> While centralized, managing certificates on the offloader still
+      requires careful attention to security, especially for the private keys.</li>
+  </ul>
+  <p>Overall, TLS offloading is a widely adopted and highly effective technique for optimizing web application
+    performance and enhancing security in modern network architectures.</p>
+
+  <hr>
+
+  <h1>How Load Balancer is Used for TLS Offloading</h1>
+  <h3>If the backend application is a Java Spring Boot application, how it behaves in these two cases - when TLS
+    offloading happens as a result of use of load balancer and when not used? For example, does it automatically know
+    whether TLS offloading has happened vs not happened?</h3>
+  <p>You've hit on a critical point in system design that often causes confusion! Let's break down how TLS offloading
+    works with a load balancer and how a Spring Boot application behaves in both scenarios.</p>
+
+  <h3 id="how-load-balancers-perform-tls-offloading">How Load Balancers Perform TLS Offloading</h3>
+  <p>As we discussed, TLS offloading (or TLS termination) shifts the burden of cryptographic operations from your
+    backend servers to the load balancer. Here's a typical flow:</p>
+  <ol>
+    <li><strong>Client (Browser) initiates HTTPS connection:</strong> The client sends an HTTPS request to the load
+      balancer's public IP address and port (usually 443).</li>
+    <li><strong>Load Balancer performs TLS Handshake:</strong>
+      <ul>
+        <li>The load balancer, configured with your domain's TLS certificate and private key, performs the full TLS
+          handshake with the client.</li>
+        <li>It encrypts and decrypts all communication with the client.</li>
+      </ul>
+    </li>
+    <li><strong>Load Balancer decrypts traffic:</strong> After the handshake, the load balancer decrypts the incoming
+      HTTPS request. At this point, the request is in plain HTTP.</li>
+    <li><strong>Load Balancer forwards traffic:</strong> The load balancer then forwards the <em>decrypted</em> HTTP
+      request to one of the healthy backend Spring Boot application instances.</li>
+    <li><strong>Backend processes request:</strong> The Spring Boot application receives the request as if it were a
+      regular HTTP request. It processes the request and generates an HTTP response.</li>
+    <li><strong>Load Balancer re-encrypts response:</strong> The load balancer receives the HTTP response from the
+      backend, re-encrypts it using the established TLS session with the client, and sends it back to the client.</li>
+  </ol>
+  <p><strong>Key point:</strong> The connection between the load balancer and the backend application is often
+    <em>unencrypted</em> (plain HTTP) by default in TLS offloading scenarios. This is because the internal network
+    segment between the load balancer and your application servers is typically considered a trusted, private network
+    within your cloud provider's infrastructure. However, for enhanced security (e.g., in highly regulated environments
+    or zero-trust architectures), you can configure "TLS bridging" or "end-to-end encryption," where the load balancer
+    re-encrypts the traffic before sending it to the backend.</p>
+
+  <h3 id="spring-boot-application-behavior">Spring Boot Application Behavior</h3>
+  <p>This is where the "automatic knowledge" comes into play, or rather, the lack thereof, and how to configure it
+    correctly.</p>
+
+  <h4 id="case-1-tls-offloading-is-used-load-balancer-terminates-tls">Case 1: TLS Offloading IS Used (Load Balancer
+    Terminates TLS)</h4>
+  <ul>
+    <li><strong>Spring Boot's Default Behavior:</strong> By default, a Spring Boot application running on an embedded
+      server (like Tomcat, Jetty, or Undertow) looks at the <code>HttpServletRequest.isSecure()</code> method to
+      determine if the request came over HTTPS. When TLS is offloaded, the load balancer typically forwards the request
+      to the backend using plain HTTP. Therefore, <code>isSecure()</code> will return <code>false</code>.</li>
+    <li><strong>The Problem:</strong> If your application, or components like Spring Security, rely on
+      <code>isSecure()</code> to enforce HTTPS redirects or secure cookie flags, it will incorrectly assume the original
+      request was insecure. This can lead to:
+      <ul>
+        <li><strong>Infinite Redirect Loops:</strong> If your Spring Security configuration automatically redirects HTTP
+          requests to HTTPS, and the application doesn't know TLS offloading is happening, it will receive an HTTP
+          request, try to redirect to HTTPS, the load balancer will terminate TLS, send it as HTTP again, and the loop
+          continues.</li>
+        <li><strong>Insecure Cookies:</strong> Cookies might be sent without the <code>Secure</code> flag, making them
+          vulnerable to interception if they were ever exposed on an insecure channel (though in a TLS offloading setup,
+          the client-to-LB connection is secure).</li>
+        <li><strong>Incorrect <code>HttpServletRequest.getRequestURL()</code>:</strong> The <code>getRequestURL()</code>
+          method might return an <code>http://</code> URL instead of <code>https://</code>.</li>
+      </ul>
+    </li>
+    <li><strong>How to Make Spring Boot "Know":</strong> This is where <strong><code>X-Forwarded-*</code>
+        headers</strong> come in. Load balancers (like Google Cloud Load Balancers, AWS ALBs, NGINX, HAProxy, etc.) are
+      designed to pass along information about the <em>original</em> client request using these standard headers:
+      <ul>
+        <li><strong><code>X-Forwarded-Proto</code>:</strong> Indicates the protocol (e.g., <code>https</code>) that the
+          client used to connect to the load balancer.</li>
+        <li><strong><code>X-Forwarded-For</code>:</strong> Indicates the original client's IP address.</li>
+        <li><strong><code>X-Forwarded-Host</code>:</strong> Indicates the original host header requested by the client.
+        </li>
+      </ul>
+      <p>Spring Boot's embedded servers (Tomcat, Jetty, Undertow) are typically configured to honor these headers. For
+        Tomcat (which Spring Boot uses by default), this is handled by the <code>RemoteIpValve</code>.</p>
+      <p><strong>Configuration in <code>application.properties</code> (for Spring Boot):</strong></p>
+      <pre><code class="lang-properties">server.forward-headers-strategy=FRAMEWORK
 # Or for more explicit configuration (often not strictly necessary with FRAMEWORK)
 # server.tomcat.remoteip.remote-ip-header=X-Forwarded-For
 # server.tomcat.remoteip.protocol-header=X-Forwarded-Proto
-# server.tomcat.remoteip.internal-proxies=10<span class="hljs-tag">\<span class="hljs-name">.</span></span><span class="hljs-tag">\<span class="hljs-name">d</span><span class="hljs-string">{1,3}</span></span><span class="hljs-tag">\<span class="hljs-name">.</span></span><span class="hljs-tag">\<span class="hljs-name">d</span><span class="hljs-string">{1,3}</span></span><span class="hljs-tag">\<span class="hljs-name">.</span></span><span class="hljs-tag">\<span class="hljs-name">d</span><span class="hljs-string">{1,3}</span></span>|192<span class="hljs-tag">\<span class="hljs-name">.</span></span>168<span class="hljs-tag">\<span class="hljs-name">.</span></span><span class="hljs-tag">\<span class="hljs-name">d</span><span class="hljs-string">{1,3}</span></span><span class="hljs-tag">\<span class="hljs-name">.</span></span><span class="hljs-tag">\<span class="hljs-name">d</span><span class="hljs-string">{1,3}</span></span>|172<span class="hljs-tag">\<span class="hljs-name">.</span></span>1[6-9]<span class="hljs-tag">\<span class="hljs-name">.</span></span><span class="hljs-tag">\<span class="hljs-name">d</span><span class="hljs-string">{1,3}</span></span><span class="hljs-tag">\<span class="hljs-name">.</span></span><span class="hljs-tag">\<span class="hljs-name">d</span><span class="hljs-string">{1,3}</span></span>|172<span class="hljs-tag">\<span class="hljs-name">.</span></span>2<span class="hljs-tag">\<span class="hljs-name">d</span></span><span class="hljs-tag">\<span class="hljs-name">.</span></span><span class="hljs-tag">\<span class="hljs-name">d</span><span class="hljs-string">{1,3}</span></span><span class="hljs-tag">\<span class="hljs-name">.</span></span><span class="hljs-tag">\<span class="hljs-name">d</span><span class="hljs-string">{1,3}</span></span>|172<span class="hljs-tag">\<span class="hljs-name">.</span></span>3[0-1]<span class="hljs-tag">\<span class="hljs-name">.</span></span><span class="hljs-tag">\<span class="hljs-name">d</span><span class="hljs-string">{1,3}</span></span><span class="hljs-tag">\<span class="hljs-name">.</span></span><span class="hljs-tag">\<span class="hljs-name">d</span><span class="hljs-string">{1,3}</span></span>
-# (The internal-proxies is important to tell Tomcat which IPs are trusted proxies, preventing IP spoofing from non-proxies)
-</code></pre>
-<p>The <code>server.forward-headers-strategy=FRAMEWORK</code> setting (available in newer Spring Boot versions) is often sufficient, as it enables the appropriate server-specific configuration (like <code>RemoteIpValve</code> for Tomcat) to correctly process <code>X-Forwarded-*</code> headers.</p>
-<p>Once configured, <code>HttpServletRequest.isSecure()</code> will correctly return <code>true</code>, and <code>getRequestURL()</code> will return <code>https://</code> URLs, allowing Spring Security and your application logic to behave as if TLS was terminated directly on the application server.</p>
-</li>
-</ul>
-<h4 id="case-2-tls-offloading-is-not-used-application-server-terminates-tls-">Case 2: TLS Offloading IS NOT Used (Application Server Terminates TLS)</h4>
-<ul>
-<li><strong>Scenario:</strong> In this case, the load balancer acts purely as a Layer 4 (TCP) passthrough load balancer. It does <em>not</em> decrypt the traffic. The encrypted HTTPS traffic goes directly to your Spring Boot application instance.</li>
-<li><strong>Spring Boot&#39;s Default Behavior:</strong> Your Spring Boot application&#39;s embedded server must be configured to handle TLS itself. This means providing the TLS certificate and private key to the application.</li>
-<li><strong>Configuration in <code>application.properties</code>:</strong><pre><code class="lang-properties"><span class="hljs-built_in">server</span>.ssl.enabled=<span class="hljs-literal">true</span>
-<span class="hljs-built_in">server</span>.ssl.key-store=classpath:keystore.p12
-<span class="hljs-built_in">server</span>.ssl.key-store-password=your_password
-<span class="hljs-built_in">server</span>.ssl.key-store-type=PKCS12
-<span class="hljs-built_in">server</span>.ssl.key-alias=your_alias
-<span class="hljs-built_in">server</span>.port=<span class="hljs-number">8443</span> # <span class="hljs-keyword">Or</span> whatever port you configure <span class="hljs-keyword">for</span> HTTPS
-</code></pre>
-(You would place your <code>keystore.p12</code> file in <code>src/main/resources</code> or provide a path to it.)</li>
-<li><strong>Behavior:</strong><ul>
-<li>The Spring Boot application itself performs the TLS handshake and encryption/decryption.</li>
-<li><code>HttpServletRequest.isSecure()</code> will correctly return <code>true</code> because the application server is handling the secure connection.</li>
-<li>There&#39;s no need for <code>X-Forwarded-*</code> headers for protocol/host determination because the application is directly seeing the secure connection.</li>
-</ul>
-</li>
-</ul>
-<h3 id="does-it-automatically-know-">Does it automatically know?</h3>
-<p><strong>No, a Spring Boot application does not <em>automatically</em> know whether TLS offloading has happened.</strong></p>
-<p>It relies on:</p>
-<ol>
-<li><strong>Direct TLS configuration:</strong> If <code>server.ssl.*</code> properties are configured, it assumes it needs to handle TLS.</li>
-<li><strong><code>X-Forwarded-*</code> headers:</strong> If these headers are present and the embedded server (via <code>server.forward-headers-strategy=FRAMEWORK</code> or similar specific valve/filter configurations) is configured to interpret them, then it can infer that the <em>original</em> client connection was secure, even if the current connection from the load balancer is plain HTTP.</li>
-</ol>
-<p><strong>In summary:</strong></p>
-<ul>
-<li><strong>TLS Offloading (Recommended for most cloud deployments):</strong> Configure your load balancer to terminate TLS and pass <code>X-Forwarded-Proto</code>, <code>X-Forwarded-For</code>, etc. Configure your Spring Boot application to use <code>server.forward-headers-strategy=FRAMEWORK</code>. This offloads the CPU burden and simplifies certificate management.</li>
-<li><strong>No TLS Offloading (Passthrough):</strong> Configure your Spring Boot application with <code>server.ssl.*</code> properties, and ensure your load balancer is a L4 passthrough that doesn&#39;t inspect or modify traffic. This is less common for typical web applications due to the benefits of offloading, but sometimes necessary for specific protocols or end-to-end encryption requirements.</li>
-</ul>
-<p>For most modern cloud-native deployments, especially with services like Google Cloud Load Balancer, TLS offloading combined with proper <code>X-Forwarded-*</code> header handling is the standard and recommended approach for performance and manageability.</p>
+# server.tomcat.remoteip.internal-proxies=10\.\d{1,3}\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|172\.1[6-9]\.\d{1,3}\.\d{1,3}|172\.2\d\.\d{1,3}\.\d{1,3}|172\.3[0-1]\.\d{1,3}\.\d{1,3}
+# (The internal-proxies is important to tell Tomcat which IPs are trusted proxies, preventing IP spoofing from non-proxies)</code></pre>
+      <p>The <code>server.forward-headers-strategy=FRAMEWORK</code> setting (available in newer Spring Boot versions) is
+        often sufficient, as it enables the appropriate server-specific configuration (like <code>RemoteIpValve</code>
+        for Tomcat) to correctly process <code>X-Forwarded-*</code> headers.</p>
+      <p>Once configured, <code>HttpServletRequest.isSecure()</code> will correctly return <code>true</code>, and
+        <code>getRequestURL()</code> will return <code>https://</code> URLs, allowing Spring Security and your
+        application logic to behave as if TLS was terminated directly on the application server.</p>
+    </li>
+  </ul>
 
+  <h4 id="case-2-tls-offloading-is-not-used-application-server-terminates-tls">Case 2: TLS Offloading IS NOT Used
+    (Application Server Terminates TLS)</h4>
+  <ul>
+    <li><strong>Scenario:</strong> In this case, the load balancer acts purely as a Layer 4 (TCP) passthrough load
+      balancer. It does <em>not</em> decrypt the traffic. The encrypted HTTPS traffic goes directly to your Spring Boot
+      application instance.</li>
+    <li><strong>Spring Boot's Default Behavior:</strong> Your Spring Boot application's embedded server must be
+      configured to handle TLS itself. This means providing the TLS certificate and private key to the application.</li>
+    <li><strong>Configuration in <code>application.properties</code>:</strong>
+      <pre><code class="lang-properties">server.ssl.enabled=true
+server.ssl.key-store=classpath:keystore.p12
+server.ssl.key-store-password=your_password
+server.ssl.key-store-type=PKCS12
+server.ssl.key-alias=your_alias
+server.port=8443 # Or whatever port you configure for HTTPS</code></pre>
+      (You would place your <code>keystore.p12</code> file in <code>src/main/resources</code> or provide a path to it.)
+    </li>
+    <li><strong>Behavior:</strong>
+      <ul>
+        <li>The Spring Boot application itself performs the TLS handshake and encryption/decryption.</li>
+        <li><code>HttpServletRequest.isSecure()</code> will correctly return <code>true</code> because the application
+          server is handling the secure connection.</li>
+        <li>There's no need for <code>X-Forwarded-*</code> headers for protocol/host determination because the
+          application is directly seeing the secure connection.</li>
+      </ul>
+    </li>
+  </ul>
+
+  <h3 id="does-it-automatically-know">Does it automatically know?</h3>
+  <p><strong>No, a Spring Boot application does not <em>automatically</em> know whether TLS offloading has
+      happened.</strong></p>
+  <p>It relies on:</p>
+  <ol>
+    <li><strong>Direct TLS configuration:</strong> If <code>server.ssl.*</code> properties are configured, it assumes it
+      needs to handle TLS.</li>
+    <li><strong><code>X-Forwarded-*</code> headers:</strong> If these headers are present and the embedded server (via
+      <code>server.forward-headers-strategy=FRAMEWORK</code> or similar specific valve/filter configurations) is
+      configured to interpret them, then it can infer that the <em>original</em> client connection was secure, even if
+      the current connection from the load balancer is plain HTTP.</li>
+  </ol>
+
+  <p><strong>In summary:</strong></p>
+  <ul>
+    <li><strong>TLS Offloading (Recommended for most cloud deployments):</strong> Configure your load balancer to
+      terminate TLS and pass <code>X-Forwarded-Proto</code>, <code>X-Forwarded-For</code>, etc. Configure your Spring
+      Boot application to use <code>server.forward-headers-strategy=FRAMEWORK</code>. This offloads the CPU burden and
+      simplifies certificate management.</li>
+    <li><strong>No TLS Offloading (Passthrough):</strong> Configure your Spring Boot application with
+      <code>server.ssl.*</code> properties, and ensure your load balancer is a L4 passthrough that doesn't inspect or
+      modify traffic. This is less common for typical web applications due to the benefits of offloading, but sometimes
+      necessary for specific protocols or end-to-end encryption requirements.</li>
+  </ul>
+  <p>For most modern cloud-native deployments, especially with services like Google Cloud Load Balancer, TLS offloading
+    combined with proper <code>X-Forwarded-*</code> header handling is the standard and recommended approach for
+    performance and manageability.</p>
 </body>
+
 </html>

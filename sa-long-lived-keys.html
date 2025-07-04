@@ -1,10 +1,12 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>GCP Migration with SA Long-Lived Keys</title>
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/github-markdown-css/5.2.0/github-markdown-light.min.css">
+  <link rel="stylesheet"
+    href="https://cdnjs.cloudflare.com/ajax/libs/github-markdown-css/5.2.0/github-markdown-light.min.css">
   <style>
     body {
       max-width: 960px;
@@ -13,88 +15,127 @@
     }
   </style>
 </head>
+
 <body class="markdown-body">
-<h1>GCP Migration with SA Long-Lived Keys</h1>
-<p>Consolidating your cloud strategy around GCP while leveraging the power of GitOps with Terraform and Tekton is a robust approach. You're aiming for automation, consistency, and clear audit trails – all hallmarks of a mature DevOps practice.</p>
-<p>Let's break this down step-by-step, focusing on the technical, security, and integration details you're looking for.</p>
-<p><strong>Overall Architecture Vision:</strong></p>
-<ol>
-<li><strong>Developers:</strong> Work in a dedicated GitHub repository containing Terraform code.</li>
-<li><strong>GitHub:</strong> Hosts the Terraform code. Webhooks trigger Tekton on PR events and specific comments/labels for approval.</li>
-<li><strong>OpenShift:</strong> Hosts Tekton Pipelines. An <code>EventListener</code> service receives GitHub webhooks.</li>
-<li><strong>Tekton:</strong>
-<ul>
-<li>Responds to PR creation/updates by running a <code>Pipeline</code> that performs <code>terraform init</code> and <code>terraform plan</code>.</li>
-<li>Responds to an approval mechanism (e.g., a specific comment like <code>/apply</code> on the PR, or a label) by running a <code>Pipeline</code> that performs <code>terraform apply</code>.</li>
-</ul></li>
-<li><strong>GCP:</strong> The target environment. Tekton will authenticate to GCP using a dedicated Service Account to provision resources within the team's project.</li>
-</ol>
-<hr/>
-<p>Let's dive into each of your requirements:</p>
-<h3>1. Create a GCP Project for the Team</h3>
-<p><strong>Technical Details:</strong></p>
-<ol>
-<li><strong>Project Creation:</strong>
-<ul>
-<li>You can create a project via the GCP Console, <code>gcloud</code> CLI, or even Terraform (from a "management" or "bootstrap" project).</li>
-<li><code>gcloud projects create YOUR_PROJECT_ID --name="Your Project Name" --set-as-default</code></li>
-<li>Associate a billing account: <code>gcloud beta billing projects link YOUR_PROJECT_ID --billing-account=YOUR_BILLING_ACCOUNT_ID</code></li>
-</ul></li>
-<li><strong>Enable Necessary APIs:</strong> For Terraform to manage resources, certain APIs must be enabled. Common ones include:
-<ul>
-<li>Compute Engine API (<code>compute.googleapis.com</code>)</li>
-<li>Cloud Resource Manager API (<code>cloudresourcemanager.googleapis.com</code>)</li>
-<li>IAM API (<code>iam.googleapis.com</code>)</li>
-<li>Service Usage API (<code>serviceusage.googleapis.com</code>)</li>
-<li>Cloud Storage API (<code>storage.googleapis.com</code>) - Crucial for Terraform backend</li>
-<li>Any other APIs for resources you intend to manage (e.g., Cloud SQL, GKE, Pub/Sub).</li>
-<li><code>gcloud services enable compute.googleapis.com cloudresourcemanager.googleapis.com iam.googleapis.com serviceusage.googleapis.com storage.googleapis.com --project=YOUR_PROJECT_ID</code></li>
-</ul></li>
-<li><strong>Terraform State Backend:</strong> This is critical. You <strong>must</strong> use a remote backend for collaborative Terraform work, especially with CI/CD. GCS (Google Cloud Storage) is the natural choice.
-<ul>
-<li>Create a GCS bucket in a separate, centrally managed project (or the same project if you're just starting, but a separate "TF state" project is better long-term for security). This bucket will store your <code>terraform.tfstate</code> files.</li>
-<li><code>gsutil mb -p YOUR_PROJECT_ID -l YOUR_REGION gs://your-terraform-state-bucket-name</code></li>
-<li>Enable versioning on the bucket: <code>gsutil versioning set on gs://your-terraform-state-bucket-name</code></li>
-</ul></li>
-</ol>
-<p><strong>Security Details:</strong></p>
-<ol>
-<li><strong>Principle of Least Privilege (PoLP):</strong> Initially, you might grant broader permissions to the Service Account that Tekton will use, but strive to narrow them down as you understand the exact resources Terraform will manage.</li>
-<li><strong>IAM Roles for Tekton's Service Account (GCP SA):</strong>
-<ul>
-<li>Create a dedicated GCP Service Account (SA) that Tekton will impersonate. Let's call it <code>tekton-terraform-sa@YOUR_PROJECT_ID.iam.gserviceaccount.com</code>.</li>
-<li><code>gcloud iam service-accounts create tekton-terraform-sa --display-name="Tekton Terraform SA" --project=YOUR_PROJECT_ID</code></li>
-<li>This SA needs permissions to:
-<ul>
-<li>Manage resources within <code>YOUR_PROJECT_ID</code>. A common starting role for simplicity within a single project is <code>roles/owner</code> <em>on that specific project</em>. Be mindful this is highly privileged. A more granular approach would be to assign specific roles like <code>roles/compute.admin</code>, <code>roles/storage.admin</code>, etc., based on what Terraform manages.</li>
-<li>Read/write to the GCS Terraform state bucket. If the bucket is in a different project, grant <code>roles/storage.objectAdmin</code> on that bucket to this SA.</li>
-</ul></li>
-<li>Granting project-level role:
-<code>gcloud projects add-iam-policy-binding YOUR_PROJECT_ID --member="serviceAccount:tekton-terraform-sa@YOUR_PROJECT_ID.iam.gserviceaccount.com" --role="roles/owner"</code></li>
-<li>Granting bucket-level role (if state bucket is <code>gs://your-terraform-state-bucket-name</code>):
-<code>gsutil iam ch serviceAccount:tekton-terraform-sa@YOUR_PROJECT_ID.iam.gserviceaccount.com:objectAdmin gs://your-terraform-state-bucket-name</code></li>
-</ul></li>
-<li><strong>Service Account Key:</strong>
-<ul>
-<li>Generate a JSON key for this SA:
-<code>gcloud iam service-accounts keys create gcp-sa-key.json --iam-account=tekton-terraform-sa@YOUR_PROJECT_ID.iam.gserviceaccount.com --project=YOUR_PROJECT_ID</code></li>
-<li><strong>Crucially, secure this key!</strong> It will be stored as a Kubernetes Secret in OpenShift.</li>
-</ul></li>
-</ol>
-<p><strong>Integration Details:</strong></p>
-<ul>
-<li>The GCP Project ID and the GCS bucket name will be configured in your Terraform backend configuration (<code>backend "gcs" {}</code>).</li>
-<li>The SA key will be used by Tekton Tasks to authenticate to GCP.</li>
-</ul>
-<hr/>
-<h3>2. Developers Use Terraform Script in a GitHub Repo</h3>
-<p><strong>Technical Details:</strong></p>
-<ol>
-<li><strong>Repository Setup:</strong>
-<ul>
-<li>Create a new GitHub repository (e.g., <code>team-alpha-gcp-infra</code>).</li>
-<li>Initialize it with a standard Terraform project structure:
-<code>
+  <h1>GCP Migration with SA Long-Lived Keys</h1>
+  <p>Consolidating your cloud strategy around GCP while leveraging the power of GitOps with Terraform and Tekton is a
+    robust approach. You're aiming for automation, consistency, and clear audit trails – all hallmarks of a mature
+    DevOps practice.</p>
+  <p>Let's break this down step-by-step, focusing on the technical, security, and integration details you're looking
+    for.</p>
+  <p><strong>Overall Architecture Vision:</strong></p>
+  <ol>
+    <li><strong>Developers:</strong> Work in a dedicated GitHub repository containing Terraform code.</li>
+    <li><strong>GitHub:</strong> Hosts the Terraform code. Webhooks trigger Tekton on PR events and specific
+      comments/labels for approval.</li>
+    <li><strong>OpenShift:</strong> Hosts Tekton Pipelines. An <code>EventListener</code> service receives GitHub
+      webhooks.</li>
+    <li><strong>Tekton:</strong>
+      <ul>
+        <li>Responds to PR creation/updates by running a <code>Pipeline</code> that performs <code>terraform init</code>
+          and <code>terraform plan</code>.</li>
+        <li>Responds to an approval mechanism (e.g., a specific comment like <code>/apply</code> on the PR, or a label)
+          by running a <code>Pipeline</code> that performs <code>terraform apply</code>.</li>
+      </ul>
+    </li>
+    <li><strong>GCP:</strong> The target environment. Tekton will authenticate to GCP using a dedicated Service Account
+      to provision resources within the team's project.</li>
+  </ol>
+  <hr />
+  <p>Let's dive into each of your requirements:</p>
+  <h3>1. Create a GCP Project for the Team</h3>
+  <p><strong>Technical Details:</strong></p>
+  <ol>
+    <li><strong>Project Creation:</strong>
+      <ul>
+        <li>You can create a project via the GCP Console, <code>gcloud</code> CLI, or even Terraform (from a
+          "management" or "bootstrap" project).</li>
+        <li><code>gcloud projects create YOUR_PROJECT_ID --name="Your Project Name" --set-as-default</code></li>
+        <li>Associate a billing account:
+          <code>gcloud beta billing projects link YOUR_PROJECT_ID --billing-account=YOUR_BILLING_ACCOUNT_ID</code></li>
+      </ul>
+    </li>
+    <li><strong>Enable Necessary APIs:</strong> For Terraform to manage resources, certain APIs must be enabled. Common
+      ones include:
+      <ul>
+        <li>Compute Engine API (<code>compute.googleapis.com</code>)</li>
+        <li>Cloud Resource Manager API (<code>cloudresourcemanager.googleapis.com</code>)</li>
+        <li>IAM API (<code>iam.googleapis.com</code>)</li>
+        <li>Service Usage API (<code>serviceusage.googleapis.com</code>)</li>
+        <li>Cloud Storage API (<code>storage.googleapis.com</code>) - Crucial for Terraform backend</li>
+        <li>Any other APIs for resources you intend to manage (e.g., Cloud SQL, GKE, Pub/Sub).</li>
+        <li>
+          <code>gcloud services enable compute.googleapis.com cloudresourcemanager.googleapis.com iam.googleapis.com serviceusage.googleapis.com storage.googleapis.com --project=YOUR_PROJECT_ID</code>
+        </li>
+      </ul>
+    </li>
+    <li><strong>Terraform State Backend:</strong> This is critical. You <strong>must</strong> use a remote backend for
+      collaborative Terraform work, especially with CI/CD. GCS (Google Cloud Storage) is the natural choice.
+      <ul>
+        <li>Create a GCS bucket in a separate, centrally managed project (or the same project if you're just starting,
+          but a separate "TF state" project is better long-term for security). This bucket will store your
+          <code>terraform.tfstate</code> files.</li>
+        <li><code>gsutil mb -p YOUR_PROJECT_ID -l YOUR_REGION gs://your-terraform-state-bucket-name</code></li>
+        <li>Enable versioning on the bucket: <code>gsutil versioning set on gs://your-terraform-state-bucket-name</code>
+        </li>
+      </ul>
+    </li>
+  </ol>
+  <p><strong>Security Details:</strong></p>
+  <ol>
+    <li><strong>Principle of Least Privilege (PoLP):</strong> Initially, you might grant broader permissions to the
+      Service Account that Tekton will use, but strive to narrow them down as you understand the exact resources
+      Terraform will manage.</li>
+    <li><strong>IAM Roles for Tekton's Service Account (GCP SA):</strong>
+      <ul>
+        <li>Create a dedicated GCP Service Account (SA) that Tekton will impersonate. Let's call it
+          <code>tekton-terraform-sa@YOUR_PROJECT_ID.iam.gserviceaccount.com</code>.</li>
+        <li>
+          <code>gcloud iam service-accounts create tekton-terraform-sa --display-name="Tekton Terraform SA" --project=YOUR_PROJECT_ID</code>
+        </li>
+        <li>This SA needs permissions to:
+          <ul>
+            <li>Manage resources within <code>YOUR_PROJECT_ID</code>. A common starting role for simplicity within a
+              single project is <code>roles/owner</code> <em>on that specific project</em>. Be mindful this is highly
+              privileged. A more granular approach would be to assign specific roles like
+              <code>roles/compute.admin</code>, <code>roles/storage.admin</code>, etc., based on what Terraform manages.
+            </li>
+            <li>Read/write to the GCS Terraform state bucket. If the bucket is in a different project, grant
+              <code>roles/storage.objectAdmin</code> on that bucket to this SA.</li>
+          </ul>
+        </li>
+        <li>Granting project-level role:
+          <code>gcloud projects add-iam-policy-binding YOUR_PROJECT_ID --member="serviceAccount:tekton-terraform-sa@YOUR_PROJECT_ID.iam.gserviceaccount.com" --role="roles/owner"</code>
+        </li>
+        <li>Granting bucket-level role (if state bucket is <code>gs://your-terraform-state-bucket-name</code>):
+          <code>gsutil iam ch serviceAccount:tekton-terraform-sa@YOUR_PROJECT_ID.iam.gserviceaccount.com:objectAdmin gs://your-terraform-state-bucket-name</code>
+        </li>
+      </ul>
+    </li>
+    <li><strong>Service Account Key:</strong>
+      <ul>
+        <li>Generate a JSON key for this SA:
+          <code>gcloud iam service-accounts keys create gcp-sa-key.json --iam-account=tekton-terraform-sa@YOUR_PROJECT_ID.iam.gserviceaccount.com --project=YOUR_PROJECT_ID</code>
+        </li>
+        <li><strong>Crucially, secure this key!</strong> It will be stored as a Kubernetes Secret in OpenShift.</li>
+      </ul>
+    </li>
+  </ol>
+  <p><strong>Integration Details:</strong></p>
+  <ul>
+    <li>The GCP Project ID and the GCS bucket name will be configured in your Terraform backend configuration
+      (<code>backend "gcs" {}</code>).</li>
+    <li>The SA key will be used by Tekton Tasks to authenticate to GCP.</li>
+  </ul>
+  <hr />
+  <h3>2. Developers Use Terraform Script in a GitHub Repo</h3>
+  <p><strong>Technical Details:</strong></p>
+  <ol>
+    <li><strong>Repository Setup:</strong>
+      <ul>
+        <li>Create a new GitHub repository (e.g., <code>team-alpha-gcp-infra</code>).</li>
+        <li>Initialize it with a standard Terraform project structure:
+          <code>
 .
 ├── main.tf         # Main resource definitions
 ├── variables.tf    # Input variables
@@ -102,76 +143,96 @@
 ├── versions.tf     # Provider versions, Terraform version
 ├── backend.tf      # Backend configuration (GCS)
 └── .gitignore      # To ignore .terraform, *.tfstate, *.tfvars, etc.
-</code></li>
-</ul></li>
-<li><strong><code>backend.tf</code> example:</strong>
-<code>terraform
+</code>
+        </li>
+      </ul>
+    </li>
+    <li><strong><code>backend.tf</code> example:</strong>
+      <code>terraform
 terraform {
   backend "gcs" {
     bucket  = "your-terraform-state-bucket-name" # The GCS bucket you created
     prefix  = "team-alpha/production"            # Path within the bucket for this project's state
   }
 }
-</code></li>
-<li><p><strong>Provider Configuration (<code>versions.tf</code> or <code>main.tf</code>):</strong>
-```terraform
-terraform {
-  required_providers {
-    google = {
-      source  = "hashicorp/google"
-      version = "~&gt; 4.0" # Or your desired version
-    }
-  }
-}</p>
-<p>provider "google" {
-  project = var.gcp<em>project</em>id # Will be passed as a variable or set via env var
-  region  = var.gcp_region
-}
-```</p>
-<ul>
-<li>Note: When Tekton runs, it will use the credentials from the SA key, so you don't typically embed credentials here. Google provider automatically picks up <code>GOOGLE_APPLICATION_CREDENTIALS</code> or Workload Identity.</li>
-</ul></li>
-</ol>
-<p><strong>Security Details:</strong></p>
-<ol>
-<li><strong>Branch Protection:</strong> Protect your <code>main</code> (or <code>master</code>) branch.
-<ul>
-<li>Require pull request reviews before merging.</li>
-<li>Require status checks to pass before merging (your Tekton <code>plan</code> pipeline will be a status check).</li>
-<li>Optionally, restrict who can push to the protected branch.</li>
-</ul></li>
-<li><strong>Secrets Management (within Terraform):</strong> Avoid hardcoding secrets in Terraform. Use a secrets manager like GCP Secret Manager, HashiCorp Vault, or environment variables injected by Tekton (for non-sensitive config).</li>
-</ol>
-<p><strong>Integration Details:</strong></p>
-<ul>
-<li>This repo is the "source of truth" for your infrastructure.</li>
-<li>GitHub webhooks from this repo will trigger Tekton.</li>
-</ul>
-<hr/>
-<h3>3. Use OpenShift Tekton Pipeline to Run Terraform</h3>
-<p>This is where your CI/CD magic happens within OpenShift.</p>
-<p><strong>Technical Details:</strong></p>
-<ol>
-<li><strong>Install Tekton:</strong>
-<ul>
-<li>If not already installed, install the Tekton Pipelines Operator (and Tekton Triggers Operator if not bundled) from the OpenShift OperatorHub. This is the easiest way.</li>
-</ul></li>
-<li><strong>Create a Kubernetes Secret for GCP Credentials:</strong>
-<ul>
-<li>In the OpenShift project (namespace) where Tekton will run:
-<code>oc create secret generic gcp-sa-credentials --from-file=credentials.json=./gcp-sa-key.json -n your-tekton-namespace</code>
-(Replace <code>your-tekton-namespace</code> with the actual namespace).</li>
-</ul></li>
-<li><strong>Create a Kubernetes Secret for GitHub Access (for cloning private repos &amp; status updates):</strong>
-<ul>
-<li>Generate a GitHub Personal Access Token (PAT) with <code>repo</code> scope (for cloning and updating PR statuses) or, ideally, set up a GitHub App for more granular permissions.</li>
-<li><code>oc create secret generic github-credentials --from-literal=token=YOUR_GITHUB_PAT -n your-tekton-namespace</code></li>
-</ul></li>
-<li><p><strong>Define Tekton Tasks:</strong> You'll need tasks for common operations.</p>
-<ul>
-<li><strong><code>git-clone</code> Task:</strong> Tekton Hub has a standard <code>git-clone</code> task.</li>
-<li><strong><code>terraform-cli</code> Task (Custom):</strong> This task will execute Terraform commands.
-<code>yaml
+</code>
+    </li>
+    <li>
+      <p><strong>Provider Configuration (<code>versions.tf</code> or <code>main.tf</code>):</strong>
+        ```terraform
+        terraform {
+        required_providers {
+        google = {
+        source = "hashicorp/google"
+        version = "~&gt; 4.0" # Or your desired version
+        }
+        }
+        }</p>
+      <p>provider "google" {
+        project = var.gcp<em>project</em>id # Will be passed as a variable or set via env var
+        region = var.gcp_region
+        }
+        ```</p>
+      <ul>
+        <li>Note: When Tekton runs, it will use the credentials from the SA key, so you don't typically embed
+          credentials here. Google provider automatically picks up <code>GOOGLE_APPLICATION_CREDENTIALS</code> or
+          Workload Identity.</li>
+      </ul>
+    </li>
+  </ol>
+  <p><strong>Security Details:</strong></p>
+  <ol>
+    <li><strong>Branch Protection:</strong> Protect your <code>main</code> (or <code>master</code>) branch.
+      <ul>
+        <li>Require pull request reviews before merging.</li>
+        <li>Require status checks to pass before merging (your Tekton <code>plan</code> pipeline will be a status
+          check).</li>
+        <li>Optionally, restrict who can push to the protected branch.</li>
+      </ul>
+    </li>
+    <li><strong>Secrets Management (within Terraform):</strong> Avoid hardcoding secrets in Terraform. Use a secrets
+      manager like GCP Secret Manager, HashiCorp Vault, or environment variables injected by Tekton (for non-sensitive
+      config).</li>
+  </ol>
+  <p><strong>Integration Details:</strong></p>
+  <ul>
+    <li>This repo is the "source of truth" for your infrastructure.</li>
+    <li>GitHub webhooks from this repo will trigger Tekton.</li>
+  </ul>
+  <hr />
+  <h3>3. Use OpenShift Tekton Pipeline to Run Terraform</h3>
+  <p>This is where your CI/CD magic happens within OpenShift.</p>
+  <p><strong>Technical Details:</strong></p>
+  <ol>
+    <li><strong>Install Tekton:</strong>
+      <ul>
+        <li>If not already installed, install the Tekton Pipelines Operator (and Tekton Triggers Operator if not
+          bundled) from the OpenShift OperatorHub. This is the easiest way.</li>
+      </ul>
+    </li>
+    <li><strong>Create a Kubernetes Secret for GCP Credentials:</strong>
+      <ul>
+        <li>In the OpenShift project (namespace) where Tekton will run:
+          <code>oc create secret generic gcp-sa-credentials --from-file=credentials.json=./gcp-sa-key.json -n your-tekton-namespace</code>
+          (Replace <code>your-tekton-namespace</code> with the actual namespace).
+        </li>
+      </ul>
+    </li>
+    <li><strong>Create a Kubernetes Secret for GitHub Access (for cloning private repos &amp; status updates):</strong>
+      <ul>
+        <li>Generate a GitHub Personal Access Token (PAT) with <code>repo</code> scope (for cloning and updating PR
+          statuses) or, ideally, set up a GitHub App for more granular permissions.</li>
+        <li>
+          <code>oc create secret generic github-credentials --from-literal=token=YOUR_GITHUB_PAT -n your-tekton-namespace</code>
+        </li>
+      </ul>
+    </li>
+    <li>
+      <p><strong>Define Tekton Tasks:</strong> You'll need tasks for common operations.</p>
+      <ul>
+        <li><strong><code>git-clone</code> Task:</strong> Tekton Hub has a standard <code>git-clone</code> task.</li>
+        <li><strong><code>terraform-cli</code> Task (Custom):</strong> This task will execute Terraform commands.
+          <code>yaml
 apiVersion: tekton.dev/v1beta1
 kind: Task
 metadata:
@@ -208,71 +269,103 @@ spec:
         echo "Running: terraform $(params.COMMAND) $@"
         terraform $(params.COMMAND) $(params.ARGS[*])
 </code>
-<ul>
-<li><strong>Workspace <code>gcp-credentials</code>:</strong> This is where you'll mount the <code>gcp-sa-credentials</code> secret.</li>
-<li><strong>Environment Variable <code>GOOGLE_APPLICATION_CREDENTIALS</code>:</strong> The Google Cloud client libraries (and Terraform Google provider) automatically look for this environment variable to find the credentials file.</li>
-</ul></li>
-</ul></li>
-<li><p><strong>Define Tekton Pipelines:</strong></p>
-<ul>
-<li><strong><code>terraform-plan-pipeline</code>:</strong>
-<ol>
-<li>Clones the Git repository (using <code>git-clone</code> task).</li>
-<li>Runs <code>terraform init</code> (using <code>terraform-cli</code> task).</li>
-<li>Runs <code>terraform validate</code> (optional, good practice).</li>
-<li>Runs <code>terraform plan</code> (using <code>terraform-cli</code> task). The output of plan needs to be visible.</li>
-</ol></li>
-<li><strong><code>terraform-apply-pipeline</code>:</strong>
-<ol>
-<li>Clones the Git repository.</li>
-<li>Runs <code>terraform init</code>.</li>
-<li>Runs <code>terraform apply -auto-approve</code>.</li>
-</ol></li>
-</ul></li>
-</ol>
-<p><strong>Security Details:</strong></p>
-<ol>
-<li><strong>OpenShift Service Account (K8s SA):</strong> Tekton <code>PipelineRuns</code> execute as a Kubernetes Service Account in your OpenShift namespace.
-<ul>
-<li>This SA needs permissions to:
-<ul>
-<li>Mount the <code>gcp-sa-credentials</code> and <code>github-credentials</code> secrets.</li>
-<li>Create pods, PVCs (for workspaces), etc.</li>
-</ul></li>
-<li>Often, the <code>pipeline</code> SA created by Tekton installation has sufficient rights within its namespace. You might need to grant it explicit access to specific secrets if they are in a different namespace or if strict RBAC is in place.
-<code>oc policy add-role-to-user edit system:serviceaccount:your-tekton-namespace:pipeline -n your-tekton-namespace</code> (adjust as needed, <code>edit</code> is broad)</li>
-</ul></li>
-<li><strong>Network Policies:</strong> If you have strict NetworkPolicies in OpenShift, ensure Tekton pods can reach:
-<ul>
-<li>GitHub (for cloning).</li>
-<li>GCP APIs (for Terraform operations).</li>
-</ul></li>
-<li><strong>Tekton <code>EventListener</code> Security:</strong> The <code>EventListener</code> exposes an HTTP endpoint. Secure it with HTTPS (OpenShift Routes handle TLS termination by default) and consider IP whitelisting or an intermediary authentication proxy if exposed to the public internet, though GitHub webhooks support secrets for verification.</li>
-</ol>
-<p><strong>Integration Details:</strong></p>
-<ul>
-<li><strong>Workspaces:</strong> Tekton <code>Workspaces</code> are key. They allow tasks to share data (like the cloned repo or a persistent volume for the <code>.terraform</code> directory).
-<ul>
-<li>Typically, you'll define a <code>PersistentVolumeClaim</code> (PVC) for the <code>source</code> workspace in your <code>PipelineRun</code> to share the cloned code and <code>.terraform</code> directory between <code>init</code>, <code>plan</code>, and <code>apply</code> steps if they are in the same pipeline. If <code>plan</code> and <code>apply</code> are separate pipelines, <code>apply</code> will re-clone and re-init.</li>
-</ul></li>
-<li><strong>Secrets:</strong> Secrets are mounted into Task Pods as files or environment variables.</li>
-</ul>
-<hr/>
-<h3>4. PR Trigger for <code>terraform init</code> and <code>terraform plan</code></h3>
-<p><strong>Technical Details:</strong></p>
-<ol>
-<li><strong>GitHub Webhook:</strong>
-<ul>
-<li>In your GitHub repo settings (<code>team-alpha-gcp-infra</code> -&gt; Settings -&gt; Webhooks -&gt; Add webhook).</li>
-<li><strong>Payload URL:</strong> This will be the URL of your Tekton <code>EventListener</code> Route in OpenShift. Find it with <code>oc get route -n your-tekton-namespace</code>.</li>
-<li><strong>Content type:</strong> <code>application/json</code>.</li>
-<li><strong>Secret:</strong> Generate a strong random string. This will be used by Tekton to verify the webhook authenticity.</li>
-<li><strong>Events:</strong> Select "Let me select individual events." -&gt; "Pull requests".</li>
-</ul></li>
-<li><strong>Tekton Triggers Setup:</strong>
-<ul>
-<li><strong><code>EventListener</code>:</strong> Deploys a service that listens for HTTP events.
-<code>yaml
+          <ul>
+            <li><strong>Workspace <code>gcp-credentials</code>:</strong> This is where you'll mount the
+              <code>gcp-sa-credentials</code> secret.</li>
+            <li><strong>Environment Variable <code>GOOGLE_APPLICATION_CREDENTIALS</code>:</strong> The Google Cloud
+              client libraries (and Terraform Google provider) automatically look for this environment variable to find
+              the credentials file.</li>
+          </ul>
+        </li>
+      </ul>
+    </li>
+    <li>
+      <p><strong>Define Tekton Pipelines:</strong></p>
+      <ul>
+        <li><strong><code>terraform-plan-pipeline</code>:</strong>
+          <ol>
+            <li>Clones the Git repository (using <code>git-clone</code> task).</li>
+            <li>Runs <code>terraform init</code> (using <code>terraform-cli</code> task).</li>
+            <li>Runs <code>terraform validate</code> (optional, good practice).</li>
+            <li>Runs <code>terraform plan</code> (using <code>terraform-cli</code> task). The output of plan needs to be
+              visible.</li>
+          </ol>
+        </li>
+        <li><strong><code>terraform-apply-pipeline</code>:</strong>
+          <ol>
+            <li>Clones the Git repository.</li>
+            <li>Runs <code>terraform init</code>.</li>
+            <li>Runs <code>terraform apply -auto-approve</code>.</li>
+          </ol>
+        </li>
+      </ul>
+    </li>
+  </ol>
+  <p><strong>Security Details:</strong></p>
+  <ol>
+    <li><strong>OpenShift Service Account (K8s SA):</strong> Tekton <code>PipelineRuns</code> execute as a Kubernetes
+      Service Account in your OpenShift namespace.
+      <ul>
+        <li>This SA needs permissions to:
+          <ul>
+            <li>Mount the <code>gcp-sa-credentials</code> and <code>github-credentials</code> secrets.</li>
+            <li>Create pods, PVCs (for workspaces), etc.</li>
+          </ul>
+        </li>
+        <li>Often, the <code>pipeline</code> SA created by Tekton installation has sufficient rights within its
+          namespace. You might need to grant it explicit access to specific secrets if they are in a different namespace
+          or if strict RBAC is in place.
+          <code>oc policy add-role-to-user edit system:serviceaccount:your-tekton-namespace:pipeline -n your-tekton-namespace</code>
+          (adjust as needed, <code>edit</code> is broad)
+        </li>
+      </ul>
+    </li>
+    <li><strong>Network Policies:</strong> If you have strict NetworkPolicies in OpenShift, ensure Tekton pods can
+      reach:
+      <ul>
+        <li>GitHub (for cloning).</li>
+        <li>GCP APIs (for Terraform operations).</li>
+      </ul>
+    </li>
+    <li><strong>Tekton <code>EventListener</code> Security:</strong> The <code>EventListener</code> exposes an HTTP
+      endpoint. Secure it with HTTPS (OpenShift Routes handle TLS termination by default) and consider IP whitelisting
+      or an intermediary authentication proxy if exposed to the public internet, though GitHub webhooks support secrets
+      for verification.</li>
+  </ol>
+  <p><strong>Integration Details:</strong></p>
+  <ul>
+    <li><strong>Workspaces:</strong> Tekton <code>Workspaces</code> are key. They allow tasks to share data (like the
+      cloned repo or a persistent volume for the <code>.terraform</code> directory).
+      <ul>
+        <li>Typically, you'll define a <code>PersistentVolumeClaim</code> (PVC) for the <code>source</code> workspace in
+          your <code>PipelineRun</code> to share the cloned code and <code>.terraform</code> directory between
+          <code>init</code>, <code>plan</code>, and <code>apply</code> steps if they are in the same pipeline. If
+          <code>plan</code> and <code>apply</code> are separate pipelines, <code>apply</code> will re-clone and re-init.
+        </li>
+      </ul>
+    </li>
+    <li><strong>Secrets:</strong> Secrets are mounted into Task Pods as files or environment variables.</li>
+  </ul>
+  <hr />
+  <h3>4. PR Trigger for <code>terraform init</code> and <code>terraform plan</code></h3>
+  <p><strong>Technical Details:</strong></p>
+  <ol>
+    <li><strong>GitHub Webhook:</strong>
+      <ul>
+        <li>In your GitHub repo settings (<code>team-alpha-gcp-infra</code> -&gt; Settings -&gt; Webhooks -&gt; Add
+          webhook).</li>
+        <li><strong>Payload URL:</strong> This will be the URL of your Tekton <code>EventListener</code> Route in
+          OpenShift. Find it with <code>oc get route -n your-tekton-namespace</code>.</li>
+        <li><strong>Content type:</strong> <code>application/json</code>.</li>
+        <li><strong>Secret:</strong> Generate a strong random string. This will be used by Tekton to verify the webhook
+          authenticity.</li>
+        <li><strong>Events:</strong> Select "Let me select individual events." -&gt; "Pull requests".</li>
+      </ul>
+    </li>
+    <li><strong>Tekton Triggers Setup:</strong>
+      <ul>
+        <li><strong><code>EventListener</code>:</strong> Deploys a service that listens for HTTP events.
+          <code>yaml
 apiVersion: triggers.tekton.dev/v1alpha1 # Or v1beta1 depending on your Tekton version
 kind: EventListener
 metadata:
@@ -296,11 +389,14 @@ spec:
         - ref: github-pr-binding # Extracts data from the webhook payload
       template:
         ref: terraform-plan-pipeline-template # Points to a TriggerTemplate
-</code></li>
-<li><strong>K8s Secret for Webhook Secret:</strong>
-<code>oc create secret generic github-webhook-secret --from-literal=secretToken='YOUR_GITHUB_WEBHOOK_SECRET' -n your-tekton-namespace</code></li>
-<li><strong><code>TriggerBinding</code> (<code>github-pr-binding</code>):</strong> Extracts relevant data from the GitHub PR payload (e.g., repository URL, commit SHA, PR number).
-<code>yaml
+</code>
+        </li>
+        <li><strong>K8s Secret for Webhook Secret:</strong>
+          <code>oc create secret generic github-webhook-secret --from-literal=secretToken='YOUR_GITHUB_WEBHOOK_SECRET' -n your-tekton-namespace</code>
+        </li>
+        <li><strong><code>TriggerBinding</code> (<code>github-pr-binding</code>):</strong> Extracts relevant data from
+          the GitHub PR payload (e.g., repository URL, commit SHA, PR number).
+          <code>yaml
 apiVersion: triggers.tekton.dev/v1alpha1
 kind: TriggerBinding
 metadata:
@@ -320,9 +416,11 @@ spec:
       value: $(body.repository.owner.login)
     - name: GITHUB_REPOSITORY
       value: $(body.repository.name)
-</code></li>
-<li><strong><code>TriggerTemplate</code> (<code>terraform-plan-pipeline-template</code>):</strong> Defines the <code>PipelineRun</code> to be created when the trigger fires.
-<code>yaml
+</code>
+        </li>
+        <li><strong><code>TriggerTemplate</code> (<code>terraform-plan-pipeline-template</code>):</strong> Defines the
+          <code>PipelineRun</code> to be created when the trigger fires.
+          <code>yaml
 apiVersion: triggers.tekton.dev/v1alpha1
 kind: TriggerTemplate
 metadata:
@@ -374,60 +472,92 @@ spec:
             value: $(tt.params.prnumber)
           - name: GITHUB_SHA
             value: $(tt.params.gitrevision)
-</code></li>
-<li><strong>Define <code>terraform-plan-pipeline</code>:</strong> This pipeline will use a <code>git-clone</code> task, then the <code>terraform-cli</code> task for <code>init</code> and <code>plan</code>. Optionally, add a task to update the GitHub PR with the plan status (e.g., using <code>github-set-status</code> task from Tekton Hub).
-<ul>
-<li><strong>Log Review:</strong> Tekton <code>PipelineRun</code> logs (accessible via <code>tkn pipelinerun logs &lt;pr-name&gt;</code> or OpenShift Console) will contain the <code>terraform plan</code> output for developers to review.</li>
-<li><strong>Status Checks:</strong> Use a task like <code>github-set-status</code> (from Tekton Hub) to update the PR commit status (pending, success, failure) in GitHub. This integrates with branch protection rules.</li>
-</ul></li>
-</ul></li>
-</ol>
-<p><strong>Security &amp; Integration:</strong></p>
-<ul>
-<li><strong>Webhook Secret:</strong> Ensures Tekton only processes legitimate requests from your GitHub repo.</li>
-<li><strong>GitHub PAT/App:</strong> The <code>github-credentials</code> secret allows Tekton to clone the repo (if private) and update PR statuses.</li>
-<li><strong>PR Context:</strong> The <code>TriggerBinding</code> makes PR-specific information available to the <code>PipelineRun</code>.</li>
-</ul>
-<hr/>
-<h3>5. PR Approval Triggers <code>terraform apply</code></h3>
-<p>This is the "ChatOps" or "GitOps approval" part. Developers review the plan, and if acceptable, an action triggers the <code>apply</code>.</p>
-<p><strong>Technical Options for Approval:</strong></p>
-<ol>
-<li><strong>GitHub PR Comment:</strong>
-<ul>
-<li>Developers comment <code>/apply</code> on the PR.</li>
-<li><strong>Webhook Event:</strong> <code>Issue comment</code>.</li>
-<li><strong>Tekton Trigger:</strong> A new trigger in your <code>EventListener</code> (or a conditional one) that filters for comments containing <code>/apply</code> on open PRs.
-<ul>
-<li><strong>Interceptor:</strong> You'd use a <code>cel</code> interceptor to check <code>body.comment.body == "/apply"</code> and <code>body.issue.state == "open"</code>.</li>
-<li>Also, crucial: <strong>Verify the commenter has permission to approve!</strong> This is tricky with plain comments. A GitHub App with more sophisticated logic or a tool like Prow (more complex) can handle this better. For a simpler setup, you rely on GitHub PR review approvals and the merge action itself, or trust that only authorized people know to use <code>/apply</code>.</li>
-</ul></li>
-</ul></li>
-<li><strong>GitHub PR Label:</strong>
-<ul>
-<li>An authorized user applies a specific label (e.g., <code>ready-to-apply</code>) to the PR.</li>
-<li><strong>Webhook Event:</strong> <code>Pull request</code> with <code>action: labeled</code>.</li>
-<li><strong>Tekton Trigger:</strong> Filters for the specific label.
-<ul>
-<li><strong>Interceptor:</strong> <code>cel</code> interceptor to check <code>body.action == "labeled"</code> and <code>body.label.name == "ready-to-apply"</code>.</li>
-</ul></li>
-</ul></li>
-<li><strong>PR Merge (Simplest, if "approval" means merged to main):</strong>
-<ul>
-<li><strong>Webhook Event:</strong> <code>Push</code> (filtered for your <code>main</code> branch) OR <code>Pull request</code> with <code>action: closed</code> and <code>merged: true</code>.</li>
-<li><strong>Tekton Trigger:</strong> Filters for pushes to <code>main</code> or merged PRs.</li>
-<li><strong>This is the most common and robust flow if "approve" means the code has been peer-reviewed and merged.</strong> The merged code on <code>main</code> is then applied.</li>
-</ul></li>
-</ol>
-<p>Let's assume the <strong>PR Merge to <code>main</code></strong> as the trigger for <code>apply</code>, as it aligns well with standard GitOps flow where <code>main</code> reflects the desired state. If you specifically need an action <em>before</em> merge, the comment/label approach is viable but needs careful thought on authorization. Your request says "approve the PR which should trigger terraform apply", which could mean either a pre-merge approval action or the act of merging itself as the final approval. For simplicity and robustness, I'll describe the merge-to-main trigger.</p>
-<p><strong>Technical Details (for Merge-to-Main Trigger):</strong></p>
-<ol>
-<li><strong>GitHub Webhook (if not already set for push):</strong>
-<ul>
-<li>Ensure your webhook is configured for <code>Push</code> events, or add a new one.</li>
-</ul></li>
-<li><strong>Tekton <code>EventListener</code> (add a new trigger or modify existing):</strong>
-<code>yaml
+</code>
+        </li>
+        <li><strong>Define <code>terraform-plan-pipeline</code>:</strong> This pipeline will use a
+          <code>git-clone</code> task, then the <code>terraform-cli</code> task for <code>init</code> and
+          <code>plan</code>. Optionally, add a task to update the GitHub PR with the plan status (e.g., using
+          <code>github-set-status</code> task from Tekton Hub).
+          <ul>
+            <li><strong>Log Review:</strong> Tekton <code>PipelineRun</code> logs (accessible via
+              <code>tkn pipelinerun logs &lt;pr-name&gt;</code> or OpenShift Console) will contain the
+              <code>terraform plan</code> output for developers to review.</li>
+            <li><strong>Status Checks:</strong> Use a task like <code>github-set-status</code> (from Tekton Hub) to
+              update the PR commit status (pending, success, failure) in GitHub. This integrates with branch protection
+              rules.</li>
+          </ul>
+        </li>
+      </ul>
+    </li>
+  </ol>
+  <p><strong>Security &amp; Integration:</strong></p>
+  <ul>
+    <li><strong>Webhook Secret:</strong> Ensures Tekton only processes legitimate requests from your GitHub repo.</li>
+    <li><strong>GitHub PAT/App:</strong> The <code>github-credentials</code> secret allows Tekton to clone the repo (if
+      private) and update PR statuses.</li>
+    <li><strong>PR Context:</strong> The <code>TriggerBinding</code> makes PR-specific information available to the
+      <code>PipelineRun</code>.</li>
+  </ul>
+  <hr />
+  <h3>5. PR Approval Triggers <code>terraform apply</code></h3>
+  <p>This is the "ChatOps" or "GitOps approval" part. Developers review the plan, and if acceptable, an action triggers
+    the <code>apply</code>.</p>
+  <p><strong>Technical Options for Approval:</strong></p>
+  <ol>
+    <li><strong>GitHub PR Comment:</strong>
+      <ul>
+        <li>Developers comment <code>/apply</code> on the PR.</li>
+        <li><strong>Webhook Event:</strong> <code>Issue comment</code>.</li>
+        <li><strong>Tekton Trigger:</strong> A new trigger in your <code>EventListener</code> (or a conditional one)
+          that filters for comments containing <code>/apply</code> on open PRs.
+          <ul>
+            <li><strong>Interceptor:</strong> You'd use a <code>cel</code> interceptor to check
+              <code>body.comment.body == "/apply"</code> and <code>body.issue.state == "open"</code>.</li>
+            <li>Also, crucial: <strong>Verify the commenter has permission to approve!</strong> This is tricky with
+              plain comments. A GitHub App with more sophisticated logic or a tool like Prow (more complex) can handle
+              this better. For a simpler setup, you rely on GitHub PR review approvals and the merge action itself, or
+              trust that only authorized people know to use <code>/apply</code>.</li>
+          </ul>
+        </li>
+      </ul>
+    </li>
+    <li><strong>GitHub PR Label:</strong>
+      <ul>
+        <li>An authorized user applies a specific label (e.g., <code>ready-to-apply</code>) to the PR.</li>
+        <li><strong>Webhook Event:</strong> <code>Pull request</code> with <code>action: labeled</code>.</li>
+        <li><strong>Tekton Trigger:</strong> Filters for the specific label.
+          <ul>
+            <li><strong>Interceptor:</strong> <code>cel</code> interceptor to check
+              <code>body.action == "labeled"</code> and <code>body.label.name == "ready-to-apply"</code>.</li>
+          </ul>
+        </li>
+      </ul>
+    </li>
+    <li><strong>PR Merge (Simplest, if "approval" means merged to main):</strong>
+      <ul>
+        <li><strong>Webhook Event:</strong> <code>Push</code> (filtered for your <code>main</code> branch) OR
+          <code>Pull request</code> with <code>action: closed</code> and <code>merged: true</code>.</li>
+        <li><strong>Tekton Trigger:</strong> Filters for pushes to <code>main</code> or merged PRs.</li>
+        <li><strong>This is the most common and robust flow if "approve" means the code has been peer-reviewed and
+            merged.</strong> The merged code on <code>main</code> is then applied.</li>
+      </ul>
+    </li>
+  </ol>
+  <p>Let's assume the <strong>PR Merge to <code>main</code></strong> as the trigger for <code>apply</code>, as it aligns
+    well with standard GitOps flow where <code>main</code> reflects the desired state. If you specifically need an
+    action <em>before</em> merge, the comment/label approach is viable but needs careful thought on authorization. Your
+    request says "approve the PR which should trigger terraform apply", which could mean either a pre-merge approval
+    action or the act of merging itself as the final approval. For simplicity and robustness, I'll describe the
+    merge-to-main trigger.</p>
+  <p><strong>Technical Details (for Merge-to-Main Trigger):</strong></p>
+  <ol>
+    <li><strong>GitHub Webhook (if not already set for push):</strong>
+      <ul>
+        <li>Ensure your webhook is configured for <code>Push</code> events, or add a new one.</li>
+      </ul>
+    </li>
+    <li><strong>Tekton <code>EventListener</code> (add a new trigger or modify existing):</strong>
+      <code>yaml
 # In your EventListener spec.triggers:
 &lt;ul&gt;
 &lt;li&gt;name: github-push-main-trigger
@@ -455,11 +585,12 @@ bindings:&lt;/li&gt;
 &lt;li&gt;ref: github-push-binding # Extracts commit SHA and repo URL
 template:
 ref: terraform-apply-pipeline-template # Points to TriggerTemplate for apply
-</code></li>
+</code>
+    </li>
 
 
-<li><strong><code>TriggerBinding</code> (<code>github-push-binding</code>):</strong>
-<code>yaml
+    <li><strong><code>TriggerBinding</code> (<code>github-push-binding</code>):</strong>
+      <code>yaml
 apiVersion: triggers.tekton.dev/v1alpha1
 kind: TriggerBinding
 metadata:
@@ -470,10 +601,11 @@ spec:
       value: $(body.repository.clone_url)
     - name: gitrevision
       value: $(body.after) # SHA of the commit pushed to main
-</code></li>
-<li><strong><code>TriggerTemplate</code> (<code>terraform-apply-pipeline-template</code>):</strong>
-Similar to the plan template, but calls <code>terraform-apply-pipeline</code>.
-<code>yaml
+</code>
+    </li>
+    <li><strong><code>TriggerTemplate</code> (<code>terraform-apply-pipeline-template</code>):</strong>
+      Similar to the plan template, but calls <code>terraform-apply-pipeline</code>.
+      <code>yaml
 apiVersion: triggers.tekton.dev/v1alpha1
 kind: TriggerTemplate
 metadata:
@@ -504,19 +636,22 @@ spec:
             value: $(tt.params.gitrevision)
           - name: TERRAFORM_ARGS # Pass apply args
             value: ["-auto-approve"] # Apply non-interactively
-</code></li>
-<li><strong><code>terraform-apply-pipeline</code>:</strong>
-<ul>
-<li>Clones the repo at the specific commit from <code>main</code>.</li>
-<li>Runs <code>terraform init</code>.</li>
-<li>Runs <code>terraform apply -auto-approve</code> (or <code>terraform apply -input=false tfplan.out</code> if you saved the plan file from the PR stage, which is more robust).</li>
-</ul></li>
-</ol>
-<p><strong>If using a <code>/apply</code> comment as the trigger:</strong></p>
-<ul>
-<li><strong>Webhook Event:</strong> <code>Issue comment</code>.</li>
-<li><strong>EventListener Interceptor:</strong>
-<code>yaml
+</code>
+    </li>
+    <li><strong><code>terraform-apply-pipeline</code>:</strong>
+      <ul>
+        <li>Clones the repo at the specific commit from <code>main</code>.</li>
+        <li>Runs <code>terraform init</code>.</li>
+        <li>Runs <code>terraform apply -auto-approve</code> (or <code>terraform apply -input=false tfplan.out</code> if
+          you saved the plan file from the PR stage, which is more robust).</li>
+      </ul>
+    </li>
+  </ol>
+  <p><strong>If using a <code>/apply</code> comment as the trigger:</strong></p>
+  <ul>
+    <li><strong>Webhook Event:</strong> <code>Issue comment</code>.</li>
+    <li><strong>EventListener Interceptor:</strong>
+      <code>yaml
 &lt;ul&gt;
 &lt;li&gt;name: github-comment-apply-trigger
 interceptors:
@@ -544,56 +679,87 @@ expression: "body.issue.pull&lt;/em&gt;request.html&lt;/em&gt;url"&lt;/li&gt;
 expression: "body.issue.pull&lt;em&gt;request.head.sha" # You'll need to fetch this separately or get it from the associated PR object
 bindings: ... # Bind pr&lt;/em&gt;url, pr&lt;em&gt;head&lt;/em&gt;sha etc.
 template: ... # Template for terraform-apply-pipeline
-</code></li>
-</ul>
-<p>
+</code>
+    </li>
+  </ul>
+  <p>
 
-<li><strong>Security for <code>/apply</code>:</strong> This is the trickiest part. You need to ensure only authorized users' <code>/apply</code> comments trigger the pipeline.</li></p>
-<ul>
-<li><strong>Basic:</strong> CEL filter on <code>body.comment.user.login</code>. Maintain a list of authorized users.</li>
-<li><strong>Better:</strong> A GitHub App that can check for team membership or PR approval status before forwarding the event or by adding a specific label that the Tekton trigger then acts upon.</li>
-<li><strong>GitHub Actions:</strong> Could have a GitHub Action that verifies user permissions for <code>/apply</code>, and if valid, it applies a specific label (<code>approved-for-apply</code>) which then triggers Tekton. This offloads auth logic to GitHub Actions.</li>
-</ul>
+    <li><strong>Security for <code>/apply</code>:</strong> This is the trickiest part. You need to ensure only
+      authorized users' <code>/apply</code> comments trigger the pipeline.</li>
+  </p>
+  <ul>
+    <li><strong>Basic:</strong> CEL filter on <code>body.comment.user.login</code>. Maintain a list of authorized users.
+    </li>
+    <li><strong>Better:</strong> A GitHub App that can check for team membership or PR approval status before forwarding
+      the event or by adding a specific label that the Tekton trigger then acts upon.</li>
+    <li><strong>GitHub Actions:</strong> Could have a GitHub Action that verifies user permissions for
+      <code>/apply</code>, and if valid, it applies a specific label (<code>approved-for-apply</code>) which then
+      triggers Tekton. This offloads auth logic to GitHub Actions.</li>
+  </ul>
 
 
-<p><strong>Security &amp; Integration:</strong></p>
-<ul>
-<li><strong>Authorization:</strong> This is paramount for the <code>apply</code> step. Merging to <code>main</code> (with branch protection requiring reviews) is a strong authorization gate. Comment-based triggers require careful thought on authorizing the commenter.</li>
-<li><strong>State Locking:</strong> GCS backend supports state locking, which is essential to prevent concurrent <code>apply</code> operations from corrupting your state. Terraform handles this automatically if the backend is configured.</li>
-<li><strong>Auditability:</strong> GitHub PRs, merge history, and Tekton <code>PipelineRun</code> logs provide a complete audit trail of who proposed, reviewed, approved, and applied changes.</li>
-</ul>
-<hr/>
-<h3>Key Considerations &amp; Best Practices:</h3>
-<ol>
-<li><strong>Idempotency:</strong> Ensure your Terraform code is idempotent. Running <code>apply</code> multiple times with the same code should result in the same state without errors.</li>
-<li><strong>Workload Identity Federation (Advanced Security for GCP):</strong>
-<ul>
-<li>Instead of long-lived GCP SA keys, you can configure Workload Identity Federation. This allows Kubernetes Service Accounts (the one Tekton pods run as) to impersonate GCP Service Accounts without needing to manage SA keys.</li>
-<li>This is more secure but adds complexity to the setup. It involves configuring trust between GCP IAM and your OpenShift OIDC provider.</li>
-</ul></li>
-<li><strong>Terraform Plan Storage &amp; Application:</strong>
-<ul>
-<li>For maximum safety, the <code>plan</code> pipeline should save the generated plan file (<code>terraform plan -out=tfplan.out</code>) as an artifact (e.g., to a GCS bucket or a Tekton workspace PVC).</li>
-<li>The <code>apply</code> pipeline then downloads this exact plan file and runs <code>terraform apply tfplan.out</code>. This ensures what was planned is exactly what's applied, avoiding any drift if code changes between plan and apply.</li>
-</ul></li>
-<li><strong>Notifications:</strong> Integrate notifications (e.g., Slack, email) for pipeline success/failure.</li>
-<li><strong>Error Handling &amp; Rollback:</strong>
-<ul>
-<li>Tekton pipelines can have <code>finally</code> tasks for cleanup or notification on failure.</li>
-<li>True rollback with Terraform can be complex. It usually involves reverting the Git commit and re-applying, or manually intervening for complex failures.</li>
-</ul></li>
-<li><strong>Parameterization:</strong> Make your Tekton Pipelines and Tasks reusable by parameterizing things like Git repo URL, branch, Terraform directory, GCP project ID, etc.</li>
-<li><strong>Secrets Management in OpenShift:</strong>
-<ul>
-<li>Use OpenShift Secrets for all sensitive data.</li>
-<li>Restrict access to these secrets using RBAC to only the Service Accounts that need them.</li>
-</ul></li>
-<li><strong>Tekton CLI (<code>tkn</code>):</strong> Invaluable for interacting with Tekton (listing pipelines, logs, starting runs manually).</li>
-<li><strong>OpenShift Console:</strong> Provides a good UI for visualizing Tekton Pipelines and their execution.</li>
-</ol>
-<hr/>
-<p>This is a comprehensive blueprint. Start with one piece, get it working, and then build upon it. The journey from Azure to GCP using this GitOps model will significantly enhance your team's velocity and infrastructure reliability.</p>
-<p>You've got a solid plan! Feel free to ask if you want to dive deeper into any specific area.</p>
+  <p><strong>Security &amp; Integration:</strong></p>
+  <ul>
+    <li><strong>Authorization:</strong> This is paramount for the <code>apply</code> step. Merging to <code>main</code>
+      (with branch protection requiring reviews) is a strong authorization gate. Comment-based triggers require careful
+      thought on authorizing the commenter.</li>
+    <li><strong>State Locking:</strong> GCS backend supports state locking, which is essential to prevent concurrent
+      <code>apply</code> operations from corrupting your state. Terraform handles this automatically if the backend is
+      configured.</li>
+    <li><strong>Auditability:</strong> GitHub PRs, merge history, and Tekton <code>PipelineRun</code> logs provide a
+      complete audit trail of who proposed, reviewed, approved, and applied changes.</li>
+  </ul>
+  <hr />
+  <h3>Key Considerations &amp; Best Practices:</h3>
+  <ol>
+    <li><strong>Idempotency:</strong> Ensure your Terraform code is idempotent. Running <code>apply</code> multiple
+      times with the same code should result in the same state without errors.</li>
+    <li><strong>Workload Identity Federation (Advanced Security for GCP):</strong>
+      <ul>
+        <li>Instead of long-lived GCP SA keys, you can configure Workload Identity Federation. This allows Kubernetes
+          Service Accounts (the one Tekton pods run as) to impersonate GCP Service Accounts without needing to manage SA
+          keys.</li>
+        <li>This is more secure but adds complexity to the setup. It involves configuring trust between GCP IAM and your
+          OpenShift OIDC provider.</li>
+      </ul>
+    </li>
+    <li><strong>Terraform Plan Storage &amp; Application:</strong>
+      <ul>
+        <li>For maximum safety, the <code>plan</code> pipeline should save the generated plan file
+          (<code>terraform plan -out=tfplan.out</code>) as an artifact (e.g., to a GCS bucket or a Tekton workspace
+          PVC).</li>
+        <li>The <code>apply</code> pipeline then downloads this exact plan file and runs
+          <code>terraform apply tfplan.out</code>. This ensures what was planned is exactly what's applied, avoiding any
+          drift if code changes between plan and apply.</li>
+      </ul>
+    </li>
+    <li><strong>Notifications:</strong> Integrate notifications (e.g., Slack, email) for pipeline success/failure.</li>
+    <li><strong>Error Handling &amp; Rollback:</strong>
+      <ul>
+        <li>Tekton pipelines can have <code>finally</code> tasks for cleanup or notification on failure.</li>
+        <li>True rollback with Terraform can be complex. It usually involves reverting the Git commit and re-applying,
+          or manually intervening for complex failures.</li>
+      </ul>
+    </li>
+    <li><strong>Parameterization:</strong> Make your Tekton Pipelines and Tasks reusable by parameterizing things like
+      Git repo URL, branch, Terraform directory, GCP project ID, etc.</li>
+    <li><strong>Secrets Management in OpenShift:</strong>
+      <ul>
+        <li>Use OpenShift Secrets for all sensitive data.</li>
+        <li>Restrict access to these secrets using RBAC to only the Service Accounts that need them.</li>
+      </ul>
+    </li>
+    <li><strong>Tekton CLI (<code>tkn</code>):</strong> Invaluable for interacting with Tekton (listing pipelines, logs,
+      starting runs manually).</li>
+    <li><strong>OpenShift Console:</strong> Provides a good UI for visualizing Tekton Pipelines and their execution.
+    </li>
+  </ol>
+  <hr />
+  <p>This is a comprehensive blueprint. Start with one piece, get it working, and then build upon it. The journey from
+    Azure to GCP using this GitOps model will significantly enhance your team's velocity and infrastructure reliability.
+  </p>
+  <p>You've got a solid plan! Feel free to ask if you want to dive deeper into any specific area.</p>
 
 </body>
+
 </html>

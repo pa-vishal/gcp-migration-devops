@@ -10,23 +10,23 @@
         mermaid.initialize({ startOnLoad: true });
     </script>
     <style>
-        body { font-family: Arial, sans-serif; margin: 20px; margin: 2rem auto; padding: 2rem;}
+        body {
+            max-width: 960px;
+            margin: 2rem auto;
+            padding: 2rem;
+        }
         h1, h2, h3 { color: #333; }
         pre { background: #f4f4f4; padding: 10px; border-radius: 5px; overflow-x: auto; }
     </style>
 </head>
 <body class="markdown-body">
-<h1>
-<div style="color:blue;font-family: Arial, sans-serif; margin: 26px;"> Microsoft Entra ID (formerly Azure AD) </div> 
-</h1>
+    <h1>Microsoft Entra ID (formerly Azure AD)</h1>
     <h3>Follow-up - Understand the end-to-end flow from setting up an application with specific roles in Microsoft Entra ID and how that application uses this setup for both authenticating users and authorizing their access based on those roles.</h3>
     <p>This involves a few more pieces than just basic authentication, specifically the "App Roles" feature for role-based access control (RBAC).</p>
     <p>Here's a flow diagram and a detailed explanation:</p>
     <hr>
     <h3>Flow Diagram: Entra ID App Setup, Authentication & RBAC</h3>
- <div> 
-     <pre class="mermaid">
-	
+    <pre class="mermaid">
 graph TD
     subgraph "Phase 1: Entra ID Configuration (Admin/Developer in Azure Portal)"
         A["Admin/Developer"] -->|"1.Accesses Entra ID"| B(Microsoft Entra ID Portal)
@@ -55,14 +55,10 @@ graph TD
     style ClientApp fill:#ccf,stroke:#333,stroke-width:2px
     style EntraAuthEP fill:#lightgreen,stroke:#333,stroke-width:2px
     style EntraTokenEP fill:#lightgreen,stroke:#333,stroke-width:2px
-	
     end
-  </pre> 
- </div>
- 
- <div> 
-     <pre class="mermaid">
-	
+    </pre>
+    
+    <pre class="mermaid">
 graph TD
     subgraph "Phase 2: User Authentication & Token Acquisition (Client Application)"
        User["User (e.g., Alice)"] -->|"1. Attempts to access Client App"| ClientApp["Client Application"]
@@ -83,45 +79,39 @@ graph TD
         RBACLogic -->|"User does NOT have required role"| Deny["Deny"]
         Deny -->|User notified| FeatureDenied["Access Denied / Limited View"]
     end
-
-   
-   </pre> 
- </div>
+    </pre>
+    
     <hr>
+    
     <h2>Detailed Explanation:</h2>
     <h3>Phase 1: Entra ID Configuration (Admin/Developer in Azure Portal)</h3>
     <p>This is where you set up your application's identity and define its roles within Entra ID.</p>
     <ol>
-        <li>
-            <strong>Access Entra ID Portal:</strong>
+        <li><strong>Access Entra ID Portal:</strong>
             <ul>
                 <li>The Admin/Developer navigates to <code>portal.azure.com</code> and opens "Microsoft Entra ID."</li>
             </ul>
         </li>
-        <li>
-            <strong>App Registrations: New:</strong>
+        <li><strong>App Registrations: New:</strong>
             <ul>
                 <li>Go to "App registrations" and click "+ New registration."</li>
             </ul>
         </li>
-        <li>
-            <strong>Provide App Details:</strong>
+        <li><strong>Provide App Details:</strong>
             <ul>
                 <li><strong>Name:</strong> A user-friendly name for your application.</li>
                 <li><strong>Supported account types:</strong> Single-tenant, multi-tenant, etc.</li>
                 <li><strong>Redirect URI(s):</strong> Where Entra ID sends users back after authentication. This is crucial for security.</li>
             </ul>
         </li>
-        <li>
-            <strong>Note Application Identifiers:</strong>
+        <li><strong>Note Application Identifiers:</strong>
             <ul>
                 <li><strong>Application (Client) ID:</strong> The unique identifier for your app registration.</li>
                 <li><strong>Directory (Tenant) ID:</strong> The ID of the Entra ID tenant where the app is registered.</li>
                 <li>These are stored securely in your application's configuration.</li>
             </ul>
         </li>
-        <li>
-            <strong>Define App Roles (for RBAC):</strong>
+        <li><strong>Define App Roles (for RBAC):</strong>
             <ul>
                 <li>Within the "App registration," go to the "App roles" blade.</li>
                 <li>Click "+ Create app role."</li>
@@ -133,28 +123,24 @@ graph TD
                 <li><strong>Technical Insight:</strong> These roles are defined in the application's manifest.</li>
             </ul>
         </li>
-        <li>
-            <strong>(Optional) API Permissions:</strong>
+        <li><strong>(Optional) API Permissions:</strong>
             <ul>
                 <li>If your application needs to call other APIs (like Microsoft Graph to read user profiles, or other custom APIs), you configure these permissions under "API permissions."</li>
                 <li>For many Microsoft Graph permissions, an admin might need to grant tenant-wide admin consent.</li>
             </ul>
         </li>
-        <li>
-            <strong>User Management:</strong>
+        <li><strong>User Management:</strong>
             <ul>
                 <li>Admins create and manage user accounts within Entra ID ("Users" blade). This is standard user administration.</li>
             </ul>
         </li>
-        <li>
-            <strong>Enterprise Applications:</strong>
+        <li><strong>Enterprise Applications:</strong>
             <ul>
                 <li>When you register an application, an "Enterprise application" (also known as a Service Principal) is automatically created in your tenant. This object represents the <em>instance</em> of your application in your directory.</li>
                 <li>Search for your application's name under "Enterprise applications."</li>
             </ul>
         </li>
-        <li>
-            <strong>Assign Users/Groups to App Roles:</strong>
+        <li><strong>Assign Users/Groups to App Roles:</strong>
             <ul>
                 <li>Select your Enterprise application.</li>
                 <li>Go to "Users and groups."</li>
@@ -164,8 +150,7 @@ graph TD
                 <li>You can assign different users/groups to different roles.</li>
             </ul>
         </li>
-        <li>
-            <strong>(If needed) Configure Client Secret/Certificate:</strong>
+        <li><strong>(If needed) Configure Client Secret/Certificate:</strong>
             <ul>
                 <li>If your application is a "confidential client" (e.g., a web app running on a server, a backend API), it needs credentials to authenticate itself when exchanging an auth code for tokens.</li>
                 <li>Under the "App registration," go to "Certificates & secrets." Create a new client secret or upload a certificate.</li>
@@ -173,47 +158,41 @@ graph TD
             </ul>
         </li>
     </ol>
+    
     <h3>Phase 2: User Authentication & Token Acquisition (Client Application)</h3>
     <p>This is the standard OpenID Connect / OAuth 2.0 flow.</p>
     <ol>
-        <li>
-            <strong>User Attempts to Access Client App:</strong>
+        <li><strong>User Attempts to Access Client App:</strong>
             <ul>
                 <li>The user (e.g., Alice, who was assigned the "Editor" role) tries to access a protected part of your application.</li>
             </ul>
         </li>
-        <li>
-            <strong>Application Redirects to Entra ID:</strong>
+        <li><strong>Application Redirects to Entra ID:</strong>
             <ul>
                 <li>The application detects the user isn't authenticated and redirects them to Entra ID's <code>/authorize</code> endpoint. The request includes the app's <code>client_id</code>, <code>redirect_uri</code>, requested <code>scope</code> (e.g., <code>openid profile email api://&lt;your_app_client_id&gt;/.default</code>), and other OIDC parameters.</li>
             </ul>
         </li>
-        <li>
-            <strong>User Authenticates:</strong>
+        <li><strong>User Authenticates:</strong>
             <ul>
                 <li>The user signs in with their Entra ID credentials (and MFA if configured). If it's the first time for this app and it requires consent for API permissions, a consent screen is shown.</li>
             </ul>
         </li>
-        <li>
-            <strong>Entra ID Verifies & Issues Auth Code:</strong>
+        <li><strong>Entra ID Verifies & Issues Auth Code:</strong>
             <ul>
                 <li>After successful authentication, Entra ID issues a short-lived authorization code.</li>
             </ul>
         </li>
-        <li>
-            <strong>Entra ID Redirects User Back to App:</strong>
+        <li><strong>Entra ID Redirects User Back to App:</strong>
             <ul>
                 <li>The user is redirected back to the application's pre-registered <code>redirect_uri</code> with the authorization code.</li>
             </ul>
         </li>
-        <li>
-            <strong>App Exchanges Auth Code for Tokens:</strong>
+        <li><strong>App Exchanges Auth Code for Tokens:</strong>
             <ul>
                 <li>The application's backend securely exchanges the authorization code (along with its <code>client_id</code> and <code>client_secret</code>/certificate assertion) with Entra ID's <code>/token</code> endpoint.</li>
             </ul>
         </li>
-        <li>
-            <strong>Entra ID Validates & Issues Tokens:</strong>
+        <li><strong>Entra ID Validates & Issues Tokens:</strong>
             <ul>
                 <li>Entra ID validates the request and issues:</li>
                 <li><strong>ID Token (JWT):</strong> Contains information about the authenticated user. <strong>Crucially for RBAC, if the user was assigned App Roles (Step 9), this ID Token will contain a <code>roles</code> claim with an array of the "Value" strings of their assigned roles (e.g., <code>["Content.Editor"]</code>).</strong></li>
@@ -221,39 +200,35 @@ graph TD
                 <li><strong>Refresh Token:</strong> Used to obtain new tokens without re-authentication.</li>
             </ul>
         </li>
-        <li>
-            <strong>Tokens Returned to Client Application:</strong>
+        <li><strong>Tokens Returned to Client Application:</strong>
             <ul>
                 <li>The tokens are sent back to the application.</li>
             </ul>
         </li>
     </ol>
+    
     <h3>Phase 3: Role-Based Authorization in Client Application</h3>
     <p>This is where your application uses the information from the ID Token to make access control decisions.</p>
     <ol start="9">
-        <li>
-            <strong>App Validates ID Token:</strong>
+        <li><strong>App Validates ID Token:</strong>
             <ul>
                 <li>The application <strong>must</strong> validate the ID Token's signature (using Entra ID's public keys), issuer, audience (should be your app's Client ID), and expiry time to ensure its authenticity and integrity.</li>
             </ul>
         </li>
-        <li>
-            <strong>Extract 'roles' Claim from ID Token:</strong>
+        <li><strong>Extract 'roles' Claim from ID Token:</strong>
             <ul>
                 <li>The application parses the validated ID Token and extracts the <code>roles</code> claim. This claim will be an array of strings representing the App Roles assigned to the authenticated user for <em>this specific application</em>.</li>
                 <li>Example: For Alice, the <code>roles</code> claim might be <code>["Content.Editor"]</code>.</li>
             </ul>
         </li>
-        <li>
-            <strong>Application Logic Checks Role:</strong>
+        <li><strong>Application Logic Checks Role:</strong>
             <ul>
                 <li>Your application code now implements its authorization logic.</li>
                 <li>For a feature that requires "Editor" privileges, the code checks if the <code>roles</code> array extracted from the token contains the string <code>Content.Editor</code> (or whatever "Value" you defined for that role).</li>
                 <li>Example: <code>if (userRoles.includes('Content.Editor')) { // Allow access }</code></li>
             </ul>
         </li>
-        <li>
-            <strong>Access Granted/Denied:</strong>
+        <li><strong>Access Granted/Denied:</strong>
             <ul>
                 <li>Based on the role check, the user is either granted access to the requested feature or functionality, or they are denied access (or shown a limited view).</li>
             </ul>

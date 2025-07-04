@@ -1,0 +1,60 @@
+/* Common Styles for GCP Migration and DevOps Notes */
+
+/* Base Layout */
+body {
+    max-width: 960px;
+    margin: 2rem auto;
+    padding: 2rem;
+}
+
+/* Typography */
+h1, h2, h3 { 
+    color: #333; 
+}
+
+/* Code Blocks */
+pre { 
+    background: #f4f4f4; 
+    padding: 10px; 
+    border-radius: 5px; 
+    overflow-x: auto; 
+}
+
+/* Summary Block - Green themed info box */
+.summary-block {
+    background-color: #f0f7e6;
+    border-left: 5px solid #4CAF50;
+    padding: 10px;
+    margin: 20px 0;
+    border-radius: 4px;
+}
+
+/* Note Block - Blue themed info box */
+.note {
+    background-color: #e6f7ff;
+    border-left: 5px solid #2196F3;
+    padding: 10px;
+    margin: 20px 0;
+    border-radius: 4px;
+}
+
+/* Disclaimer Block - Orange themed warning box */
+.disclaimer {
+    background-color: #fff3e0;
+    border-left: 5px solid #ff9800;
+    padding: 10px;
+    margin: 20px 0;
+    border-radius: 4px;
+}
+
+/* Watermark - Author attribution */
+.watermark {
+    position: fixed;
+    bottom: 10px;
+    left: 10px;
+    color: rgba(0, 0, 0, 0.3);
+    font-size: 12px;
+    font-family: Arial, sans-serif;
+    z-index: 1000;
+    pointer-events: none;
+} 

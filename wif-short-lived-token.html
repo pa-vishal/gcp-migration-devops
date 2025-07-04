@@ -20,6 +20,16 @@
       margin: 20px 0;
       border-radius: 4px;
     }
+    .watermark {
+      position: fixed;
+      bottom: 10px;
+      left: 10px;
+      color: rgba(0, 0, 0, 0.3);
+      font-size: 12px;
+      font-family: Arial, sans-serif;
+      z-index: 1000;
+      pointer-events: none;
+    }
   </style>
 </head>
 
@@ -481,6 +491,7 @@ value: ["-auto-approve"]
     GCP infrastructure automation setup. It reduces the attack surface associated with long-lived credentials, which is
     a big win!</p>
 
+  <div class="watermark">Vishal Patil</div>
 </body>
 
 </html>

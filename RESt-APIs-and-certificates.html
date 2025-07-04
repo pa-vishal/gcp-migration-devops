@@ -18,6 +18,16 @@
       margin: 20px 0;
       border-radius: 4px;
     }
+    .watermark {
+      position: fixed;
+      bottom: 10px;
+      left: 10px;
+      color: rgba(0, 0, 0, 0.3);
+      font-size: 12px;
+      font-family: Arial, sans-serif;
+      z-index: 1000;
+      pointer-events: none;
+    }
   </style>
 </head>
 <body class="markdown-body">
@@ -175,5 +185,7 @@
     <li><strong>Legacy systems:</strong> Migrating existing complex certificate setups can sometimes be a phased approach, where some services might continue with self-managed certificates initially.</li>
   </ul>
   <p>For the vast majority of new applications and services on GCP that require HTTPS, using Google-managed certificates via Certificate Manager is the default and best practice.</p>
+
+  <div class="watermark">Vishal Patil</div>
 </body>
 </html>

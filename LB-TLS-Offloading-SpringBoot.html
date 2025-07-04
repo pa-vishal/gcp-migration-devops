@@ -20,6 +20,16 @@
       margin: 20px 0;
       border-radius: 4px;
     }
+    .watermark {
+      position: fixed;
+      bottom: 10px;
+      left: 10px;
+      color: rgba(0, 0, 0, 0.3);
+      font-size: 12px;
+      font-family: Arial, sans-serif;
+      z-index: 1000;
+      pointer-events: none;
+    }
   </style>
 </head>
 
@@ -274,6 +284,8 @@ server.port=8443 # Or whatever port you configure for HTTPS</code></pre>
   <p>For most modern cloud-native deployments, especially with services like Google Cloud Load Balancer, TLS offloading
     combined with proper <code>X-Forwarded-*</code> header handling is the standard and recommended approach for
     performance and manageability.</p>
+
+  <div class="watermark">Vishal Patil</div>
 </body>
 
 </html>

@@ -24,6 +24,16 @@
             margin: 20px 0;
             border-radius: 4px;
         }
+        .watermark {
+            position: fixed;
+            bottom: 10px;
+            left: 10px;
+            color: rgba(0, 0, 0, 0.3);
+            font-size: 12px;
+            font-family: Arial, sans-serif;
+            z-index: 1000;
+            pointer-events: none;
+        }
     </style>
 </head>
 <body class="markdown-body">
@@ -254,5 +264,7 @@ graph TD
         <li><strong>Groups Claim (Alternative/Complementary):</strong> You can also configure Entra ID to send group memberships in the token (as a <code>groups</code> claim). You could then base RBAC on group membership, but App Roles are often more explicit and manageable for application-specific permissions. For >150 groups, you'd get an overage claim and need to call MS Graph. App Roles are generally preferred for direct application RBAC.</li>
     </ul>
     <p>This flow provides a robust way to manage not just who can log in (authentication) but also what they can do once logged in (authorization) using Microsoft Entra ID.</p>
+    
+    <div class="watermark">Vishal Patil</div>
 </body>
 </html>

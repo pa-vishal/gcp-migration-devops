@@ -24,6 +24,16 @@
             margin: 20px 0;
             border-radius: 4px;
         }
+        .watermark {
+            position: fixed;
+            bottom: 10px;
+            left: 10px;
+            color: rgba(0, 0, 0, 0.3);
+            font-size: 12px;
+            font-family: Arial, sans-serif;
+            z-index: 1000;
+            pointer-events: none;
+        }
     </style>
 </head>
 <body class="markdown-body">
@@ -254,5 +264,7 @@ graph TD
     </ul>
 
     <p>This comprehensive flow should give you a clear understanding of how an application is registered in Azure AD and then uses the resulting Client ID (and other configuration) to authenticate users.</p>
+    
+    <div class="watermark">Vishal Patil</div>
 </body>
 </html>

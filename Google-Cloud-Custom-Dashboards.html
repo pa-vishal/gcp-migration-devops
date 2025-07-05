@@ -5,7 +5,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Google Cloud Custom Dashboards with BigQuery & Looker Studio</title>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
 
+    <script>
+        mermaid.initialize({ startOnLoad: true });
+    </script>
     <link rel="stylesheet" href="styles.css">
 </head>
 
@@ -17,6 +21,44 @@
 
     <p>This guide will walk you through creating custom dashboards in Google Cloud using BigQuery and Looker Studio to
         gain insights from your logs. We'll also provide a sample cost breakdown for such a setup.</p>
+
+    <h2>Architecture Overview</h2>
+    <pre class="mermaid">
+    flowchart TD
+        subgraph "Phase 1: Log Collection & Routing"
+            A[Cloud Logging] --> B[Log Router/Sink]
+            B --> C[BigQuery Dataset]
+            C --> D[Log Tables<br/>Partitioned & Clustered]
+        end
+        
+        subgraph "Phase 2: Data Preparation"
+            D --> E[BigQuery Views<br/>Data Transformation]
+            E --> F[Aggregated Tables<br/>Materialized Views]
+            F --> G[Optimized Data<br/>for Analysis]
+        end
+        
+        subgraph "Phase 3: Dashboard Creation"
+            G --> H[Looker Studio<br/>Data Connector]
+            H --> I[Configure Data Source<br/>Dimensions & Metrics]
+            I --> J[Build Visualizations<br/>Charts & Controls]
+            J --> K[Interactive Dashboard<br/>Share & Collaborate]
+        end
+        
+        subgraph "Cost Optimization"
+            L[Filter Logs<br/>Reduce Volume] --> A
+            M[Partition Tables<br/>Improve Performance] --> D
+            N[Create Views<br/>Reduce Query Costs] --> E
+            O[Aggregate Data<br/>Minimize Scans] --> F
+        end
+        
+        style A fill:#4285f4,stroke:#333,stroke-width:2px,color:#fff
+        style D fill:#34a853,stroke:#333,stroke-width:2px,color:#fff
+        style K fill:#ea4335,stroke:#333,stroke-width:2px,color:#fff
+        style L fill:#fbbc04,stroke:#333,stroke-width:2px,color:#000
+        style M fill:#fbbc04,stroke:#333,stroke-width:2px,color:#000
+        style N fill:#fbbc04,stroke:#333,stroke-width:2px,color:#000
+        style O fill:#fbbc04,stroke:#333,stroke-width:2px,color:#000
+    </pre>
 
     <h2>Phase 1: Route Logs to BigQuery</h2>
 

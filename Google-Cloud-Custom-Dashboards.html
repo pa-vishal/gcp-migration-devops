@@ -26,29 +26,33 @@
     <pre class="mermaid">
     flowchart TD
         subgraph "Phase 1: Log Collection & Routing"
-            A[Cloud Logging] --> B[Log Router/Sink]
+            A[Cloud Logging<br/>$225/month<br/>500GB logs] --> B[Log Router/Sink<br/>FREE]
             B --> C[BigQuery Dataset]
-            C --> D[Log Tables<br/>Partitioned & Clustered]
+            C --> D[Log Tables<br/>Partitioned & Clustered<br/>Storage: $109.80/month]
         end
         
         subgraph "Phase 2: Data Preparation"
-            D --> E[BigQuery Views<br/>Data Transformation]
-            E --> F[Aggregated Tables<br/>Materialized Views]
-            F --> G[Optimized Data<br/>for Analysis]
+            D --> E[BigQuery Views<br/>Data Transformation<br/>Query: $2.50/month]
+            E --> F[Aggregated Tables<br/>Materialized Views<br/>Cost Optimization]
+            F --> G[Optimized Data<br/>for Analysis<br/>Total BigQuery: $112.30/month]
         end
         
         subgraph "Phase 3: Dashboard Creation"
-            G --> H[Looker Studio<br/>Data Connector]
+            G --> H[Looker Studio<br/>Data Connector<br/>FREE]
             H --> I[Configure Data Source<br/>Dimensions & Metrics]
             I --> J[Build Visualizations<br/>Charts & Controls]
-            J --> K[Interactive Dashboard<br/>Share & Collaborate]
+            J --> K[Interactive Dashboard<br/>Share & Collaborate<br/>FREE]
         end
         
-        subgraph "Cost Optimization"
-            L[Filter Logs<br/>Reduce Volume] --> A
-            M[Partition Tables<br/>Improve Performance] --> D
-            N[Create Views<br/>Reduce Query Costs] --> E
-            O[Aggregate Data<br/>Minimize Scans] --> F
+        subgraph "Cost Optimization Strategies"
+            L[Filter Logs<br/>Reduce Volume<br/>Save on ingestion] --> A
+            M[Partition Tables<br/>Improve Performance<br/>Reduce query costs] --> D
+            N[Create Views<br/>Reduce Query Costs<br/>Optimize data access] --> E
+            O[Aggregate Data<br/>Minimize Scans<br/>Lower BigQuery costs] --> F
+        end
+        
+        subgraph "Total Monthly Cost: $337.30 (Estimates for 500GB logs)"
+            P[Cloud Logging: $225.00<br/>BigQuery: $112.30<br/>Looker Studio: $0.00]
         end
         
         style A fill:#4285f4,stroke:#333,stroke-width:2px,color:#fff
@@ -58,6 +62,7 @@
         style M fill:#fbbc04,stroke:#333,stroke-width:2px,color:#000
         style N fill:#fbbc04,stroke:#333,stroke-width:2px,color:#000
         style O fill:#fbbc04,stroke:#333,stroke-width:2px,color:#000
+        style P fill:#9c27b0,stroke:#333,stroke-width:2px,color:#fff
     </pre>
 
     <h2>Phase 1: Route Logs to BigQuery</h2>

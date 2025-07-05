@@ -5,7 +5,11 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>High Availability vs Read Replicas</title>
-  
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+
+  <script>
+      mermaid.initialize({ startOnLoad: true });
+  </script>
       <link rel="stylesheet" href="styles.css">
 </head>
 
@@ -97,6 +101,11 @@
                ^      (Synchronous)       (Passive)               ^                  ^
                |                                                   | (Asynchronous)   | (Asynchronous)
                +---------------------------------------------------+------------------+</code></pre>
+
+  <p><strong> OR, diagrammatically-</strong></p>
+  
+  <img src="images/HA-vs-ReadReplica.png" alt="HA vs Read Replica" style="width: 90%;">
+
   <p>By understanding this fundamental difference, you can design a database architecture that is both highly resilient
     (thanks to HA) and highly scalable (thanks to Read Replicas).</p>
 

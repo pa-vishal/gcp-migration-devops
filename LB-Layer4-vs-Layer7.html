@@ -16,6 +16,133 @@
     This page compares Layer 4 (L4) and Layer 7 (L7) load balancers, highlighting their operational differences, use cases, and examples across major cloud providers and open-source solutions.
   </div>
 
+  <h2>Summary Tables</h2>
+
+  <h3>L4 vs L7 Load Balancers Comparison</h3>
+  <table>
+    <thead>
+      <tr>
+        <th style="text-align:left"></th>
+        <th style="text-align:left">Layer 4 (L4)</th>
+        <th style="text-align:left">Layer 7 (L7)</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td style="text-align:left"><strong>Operates at</strong></td>
+        <td style="text-align:left">Transport Layer (TCP/UDP)</td>
+        <td style="text-align:left">Application Layer (HTTP/S)</td>
+      </tr>
+      <tr>
+        <td style="text-align:left"><strong>Decisions Based On</strong></td>
+        <td style="text-align:left">IP Address & Port</td>
+        <td style="text-align:left">URL Path, Hostname, Headers, Cookies</td>
+      </tr>
+      <tr>
+        <td style="text-align:left"><strong>Primary Advantage</strong></td>
+        <td style="text-align:left">Speed & Simplicity</td>
+        <td style="text-align:left">Intelligence & Flexibility</td>
+      </tr>
+      <tr>
+        <td style="text-align:left"><strong>Typical Use Case</strong></td>
+        <td style="text-align:left">High-performance TCP passthrough</td>
+        <td style="text-align:left">Web applications, APIs, microservices</td>
+      </tr>
+      <tr>
+        <td style="text-align:left"><strong>AWS Example</strong></td>
+        <td style="text-align:left">Network Load Balancer (NLB)</td>
+        <td style="text-align:left">Application Load Balancer (ALB)</td>
+      </tr>
+      <tr>
+        <td style="text-align:left"><strong>GCP Example</strong></td>
+        <td style="text-align:left">TCP Proxy Load Balancer</td>
+        <td style="text-align:left">External HTTPS Load Balancer</td>
+      </tr>
+      <tr>
+        <td style="text-align:left"><strong>Azure Example</strong></td>
+        <td style="text-align:left">Azure Load Balancer</td>
+        <td style="text-align:left">Azure Application Gateway</td>
+      </tr>
+      <tr>
+        <td style="text-align:left"><strong>Open Source Example</strong></td>
+        <td style="text-align:left">IPVS, HAProxy (TCP mode)</td>
+        <td style="text-align:left">Nginx, HAProxy, Envoy, Traefik</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>Load Balancers in Google Cloud Platform</h3>
+  <table>
+    <thead>
+      <tr>
+        <th style="text-align:left">Load Balancer Type</th>
+        <th style="text-align:left">Layer</th>
+        <th style="text-align:left">Scope</th>
+        <th style="text-align:left">Traffic Type</th>
+        <th style="text-align:left">Key Features</th>
+        <th style="text-align:left">Use Cases</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td style="text-align:left"><strong>Passthrough Network LB</strong></td>
+        <td style="text-align:left">L4</td>
+        <td style="text-align:left">Regional</td>
+        <td style="text-align:left">TCP, UDP, ESP, GRE, ICMP</td>
+        <td style="text-align:left">Non-proxy, preserves original IPs</td>
+        <td style="text-align:left">High-performance TCP passthrough</td>
+      </tr>
+      <tr>
+        <td style="text-align:left"><strong>External Proxy Network LB</strong></td>
+        <td style="text-align:left">L4</td>
+        <td style="text-align:left">Regional</td>
+        <td style="text-align:left">TCP</td>
+        <td style="text-align:left">TLS termination, proxy-based</td>
+        <td style="text-align:left">External TCP services with SSL offload</td>
+      </tr>
+      <tr>
+        <td style="text-align:left"><strong>Internal Proxy Network LB</strong></td>
+        <td style="text-align:left">L4</td>
+        <td style="text-align:left">Regional</td>
+        <td style="text-align:left">TCP</td>
+        <td style="text-align:left">Internal IP, VPC-only access</td>
+        <td style="text-align:left">Internal TCP services</td>
+      </tr>
+      <tr>
+        <td style="text-align:left"><strong>Global External Application LB</strong></td>
+        <td style="text-align:left">L7</td>
+        <td style="text-align:left">Global</td>
+        <td style="text-align:left">HTTP, HTTPS, HTTP/2</td>
+        <td style="text-align:left">URL routing, Cloud CDN, Cloud Armor</td>
+        <td style="text-align:left">Global web applications</td>
+      </tr>
+      <tr>
+        <td style="text-align:left"><strong>Regional External Application LB</strong></td>
+        <td style="text-align:left">L7</td>
+        <td style="text-align:left">Regional</td>
+        <td style="text-align:left">HTTP, HTTPS, HTTP/2</td>
+        <td style="text-align:left">URL routing, SSL termination</td>
+        <td style="text-align:left">Regional web applications</td>
+      </tr>
+      <tr>
+        <td style="text-align:left"><strong>Regional Internal Application LB</strong></td>
+        <td style="text-align:left">L7</td>
+        <td style="text-align:left">Regional</td>
+        <td style="text-align:left">HTTP, HTTPS, HTTP/2</td>
+        <td style="text-align:left">Internal IP, microservices</td>
+        <td style="text-align:left">Internal microservices</td>
+      </tr>
+      <tr>
+        <td style="text-align:left"><strong>Cross-Region Internal Application LB</strong></td>
+        <td style="text-align:left">L7</td>
+        <td style="text-align:left">Cross-Region</td>
+        <td style="text-align:left">HTTP, HTTPS, HTTP/2</td>
+        <td style="text-align:left">Multi-region internal services</td>
+        <td style="text-align:left">Highly available internal services</td>
+      </tr>
+    </tbody>
+  </table>
+
   <hr>
 
   <h3 id="layer-4-l4-load-balancers">Layer 4 (L4) Load Balancers</h3>
@@ -93,60 +220,7 @@
       because it can automatically discover services and configure itself.</li>
   </ul>
 
-  <h3 id="summary-table">Summary Table</h3>
-  <table>
-    <thead>
-      <tr>
-        <th style="text-align:left"></th>
-        <th style="text-align:left">Layer 4 (L4)</th>
-        <th style="text-align:left">Layer 7 (L7)</th>
-      </tr>
-    </thead>
-    <tbody>
-      <tr>
-        <td style="text-align:left"><strong>Operates at</strong></td>
-        <td style="text-align:left">Transport Layer (TCP/UDP)</td>
-        <td style="text-align:left">Application Layer (HTTP/S)</td>
-      </tr>
-      <tr>
-        <td style="text-align:left"><strong>Decisions Based On</strong></td>
-        <td style="text-align:left">IP Address & Port</td>
-        <td style="text-align:left">URL Path, Hostname, Headers, Cookies</td>
-      </tr>
-      <tr>
-        <td style="text-align:left"><strong>Primary Advantage</strong></td>
-        <td style="text-align:left">Speed & Simplicity</td>
-        <td style="text-align:left">Intelligence & Flexibility</td>
-      </tr>
-      <tr>
-        <td style="text-align:left"><strong>Typical Use Case</strong></td>
-        <td style="text-align:left">High-performance TCP passthrough</td>
-        <td style="text-align:left">Web applications, APIs, microservices</td>
-      </tr>
-      <tr>
-        <td style="text-align:left"><strong>AWS Example</strong></td>
-        <td style="text-align:left">Network Load Balancer (NLB)</td>
-        <td style="text-align:left">Application Load Balancer (ALB)</td>
-      </tr>
-      <tr>
-        <td style="text-align:left"><strong>GCP Example</strong></td>
-        <td style="text-align:left">TCP Proxy Load Balancer</td>
-        <td style="text-align:left">External HTTPS Load Balancer</td>
-      </tr>
-      <tr>
-        <td style="text-align:left"><strong>Azure Example</strong></td>
-        <td style="text-align:left">Azure Load Balancer</td>
-        <td style="text-align:left">Azure Application Gateway</td>
-      </tr>
-      <tr>
-        <td style="text-align:left"><strong>Open Source Example</strong></td>
-        <td style="text-align:left">IPVS, HAProxy (TCP mode)</td>
-        <td style="text-align:left">Nginx, HAProxy, Envoy, Traefik</td>
-      </tr>
-    </tbody>
-  </table>
 
-  <hr>
 
   <h3 id="load-balancers-in-google-cloud-platform">Load Balancers In Google Cloud Platform</h3>
   <p>In Google Cloud Platform (GCP), the primary <strong>Layer 4</strong> load balancers are the <strong>Network Load

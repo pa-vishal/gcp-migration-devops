@@ -5,6 +5,10 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>TLS Offloading with Load Balancers and Spring Boot</title>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <script>
+      mermaid.initialize({ startOnLoad: true });
+  </script>
   
       <link rel="stylesheet" href="styles.css">
 </head>
@@ -33,6 +37,34 @@
   </ul>
 
   <h3 id="how-tls-offloading-works">How TLS Offloading Works</h3>
+  
+  <pre class="mermaid">
+  sequenceDiagram
+      participant Client as Client (Browser)
+      participant LB as Load Balancer
+      participant Backend as Backend Server
+      
+      Note over Client,Backend: TLS Offloading Flow
+      
+      Client->>LB: 1. HTTPS Request (TLS Handshake)
+      LB->>LB: 2. TLS Termination & Decryption
+      LB->>Backend: 3. HTTP Request (Plain Text)
+      Backend->>Backend: 4. Process Application Logic
+      Backend->>LB: 5. HTTP Response (Plain Text)
+      LB->>LB: 6. Re-encrypt with TLS
+      LB->>Client: 7. HTTPS Response (Encrypted)
+      
+      Note over Client,Backend: Alternative: TLS Bridging
+      Client->>LB: 1. HTTPS Request
+      LB->>LB: 2. TLS Termination
+      LB->>LB: 3. Re-encrypt for Backend
+      LB->>Backend: 4. HTTPS Request (New TLS)
+      Backend->>Backend: 5. Process & Respond
+      Backend->>LB: 6. HTTPS Response
+      LB->>LB: 7. Decrypt & Re-encrypt
+      LB->>Client: 8. HTTPS Response
+  </pre>
+  
   <ol>
     <li><strong>Client Initiates TLS Handshake:</strong> A client (e.g., a web browser) attempts to establish a secure
       HTTPS connection to a website.</li>
@@ -123,6 +155,40 @@
     works with a load balancer and how a Spring Boot application behaves in both scenarios.</p>
 
   <h3 id="how-load-balancers-perform-tls-offloading">How Load Balancers Perform TLS Offloading</h3>
+  
+  <pre class="mermaid">
+  flowchart TD
+      subgraph "Client Side"
+          A[Client Browser] -->|HTTPS Request<br/>Port 443| B[Load Balancer]
+      end
+      
+      subgraph "Load Balancer Layer"
+          B --> C[TLS Handshake<br/>Certificate Validation]
+          C --> D[Decrypt HTTPS Traffic<br/>Extract HTTP Request]
+          D --> E[Load Balancing Decision<br/>Select Backend Server]
+      end
+      
+      subgraph "Backend Layer"
+          E -->|HTTP Request<br/>Port 80/8080| F[Spring Boot App 1]
+          E -->|HTTP Request<br/>Port 80/8080| G[Spring Boot App 2]
+          E -->|HTTP Request<br/>Port 80/8080| H[Spring Boot App N]
+      end
+      
+      subgraph "Response Flow"
+          F --> I[HTTP Response]
+          G --> I
+          H --> I
+          I --> J[Re-encrypt Response<br/>with TLS]
+          J --> A
+      end
+      
+      style A fill:#4285f4,stroke:#333,stroke-width:2px,color:#fff
+      style B fill:#34a853,stroke:#333,stroke-width:2px,color:#fff
+      style F fill:#ea4335,stroke:#333,stroke-width:2px,color:#fff
+      style G fill:#ea4335,stroke:#333,stroke-width:2px,color:#fff
+      style H fill:#ea4335,stroke:#333,stroke-width:2px,color:#fff
+  </pre>
+  
   <p>As we discussed, TLS offloading (or TLS termination) shifts the burden of cryptographic operations from your
     backend servers to the load balancer. Here's a typical flow:</p>
   <ol>
@@ -152,6 +218,43 @@
     re-encrypts the traffic before sending it to the backend.</p>
 
   <h3 id="spring-boot-application-behavior">Spring Boot Application Behavior</h3>
+  
+  <pre class="mermaid" style="width: 135%;">
+  flowchart TD
+      subgraph "Without TLS Offloading"
+          A1[Client] -->|HTTPS Direct| B1[Spring Boot App]
+          B1 -->|isSecure = true| C1[HTTPS Redirects Work]
+          B1 -->|Secure Cookies Set| D1[Security Headers OK]
+      end
+      
+      subgraph "With TLS Offloading - Incorrect Config"
+          A2[Client] -->|HTTPS| B2[Load Balancer]
+          B2 -->|HTTP| C2[Spring Boot App]
+          C2 -->|isSecure = false| D2[Infinite Redirect Loop]
+          C2 -->|Insecure Cookies| E2[Security Issues]
+      end
+      
+      subgraph "With TLS Offloading - Correct Config"
+          A3[Client] -->|HTTPS| B3[Load Balancer]
+          B3 -->|HTTP + X-Forwarded Headers| C3[Spring Boot App]
+          C3 -->|forward-headers-strategy=FRAMEWORK| D3[Honors X-Forwarded-Proto]
+          C3 -->|isSecure = true| E3[HTTPS Redirects Work]
+          C3 -->|Secure Cookies Set| F3[Security Headers OK]
+      end
+      
+      style A1 fill:#4285f4,stroke:#333,stroke-width:2px,color:#fff
+      style A2 fill:#4285f4,stroke:#333,stroke-width:2px,color:#fff
+      style A3 fill:#4285f4,stroke:#333,stroke-width:2px,color:#fff
+      style B1 fill:#ea4335,stroke:#333,stroke-width:2px,color:#fff
+      style C2 fill:#ea4335,stroke:#333,stroke-width:2px,color:#fff
+      style C3 fill:#ea4335,stroke:#333,stroke-width:2px,color:#fff
+      style B2 fill:#34a853,stroke:#333,stroke-width:2px,color:#fff
+      style B3 fill:#34a853,stroke:#333,stroke-width:2px,color:#fff
+      style D2 fill:#ff9800,stroke:#333,stroke-width:2px,color:#000
+      style E3 fill:#4caf50,stroke:#333,stroke-width:2px,color:#fff
+      style F3 fill:#4caf50,stroke:#333,stroke-width:2px,color:#fff
+  </pre>
+  
   <p>This is where the "automatic knowledge" comes into play, or rather, the lack thereof, and how to configure it
     correctly.</p>
 

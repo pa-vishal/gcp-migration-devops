@@ -501,10 +501,78 @@
 </ol>
 <p><strong>Conclusion:</strong> For an enterprise application with 100,000+ users exposing REST APIs, you cannot replace the Global Load Balancer with Apigee. The Load Balancer is your fundamental building block for <strong>availability and performance</strong>. Apigee sits in front of it as your essential building block for <strong>security and management</strong>. They are complementary partners in a robust, enterprise-grade API architecture.</p>
 
+
   </div>
 
 <div>
   <h2>When both Apigee and GLB are used, do we still need GLB's integration with DNS ?</h2>
+  
+<div class="mermaid">
+  flowchart TD
+      subgraph "Public DNS Layer"
+          DNS1[api.your-domain.com<br/>A Record → Apigee IP]
+          DNS2[api-glb.internal.your-domain.com<br/>A Record → GLB IP]
+      end
+      
+      subgraph "Client Layer"
+          CLIENT[API Client/User]
+          ATTACKER[Malicious Actor]
+      end
+      
+      subgraph "Apigee Layer"
+          APIGEE[Apigee API Gateway<br/>API Management Platform]
+          APIGEE_POLICIES[Security Policies<br/>• API Key Validation<br/>• OAuth/JWT Check<br/>• Rate Limiting<br/>• Analytics]
+          APIGEE_TARGET[Target Endpoint<br/>Points to GLB]
+      end
+      
+      subgraph "Load Balancer Layer"
+          GLB[Global External HTTPS<br/>Load Balancer]
+          GLB_SECURITY[Security Check<br/>X-Internal-Secret Header]
+          GLB_HEALTH[Health Checks<br/>Multi-Region Failover]
+      end
+      
+      subgraph "Backend Services"
+          REGION1[us-central1<br/>Cloud Run Services]
+          REGION2[us-east1<br/>Cloud Run Services]
+          REGION3[us-west1<br/>Cloud Run Services]
+      end
+      
+      subgraph "Security Flow"
+          SECURE_FLOW[Secure Request Flow]
+          BYPASS_ATTEMPT[Bypass Attempt]
+      end
+      
+      %% Main secure flow
+      CLIENT -->|1. HTTPS Request| DNS1
+      DNS1 -->|2. Route to| APIGEE
+      APIGEE -->|3. Apply Policies| APIGEE_POLICIES
+      APIGEE_POLICIES -->|4. Valid Request| APIGEE_TARGET
+      APIGEE_TARGET -->|5. Add X-Internal-Secret| DNS2
+      DNS2 -->|6. Route to| GLB
+      GLB -->|7. Check Header| GLB_SECURITY
+      GLB_SECURITY -->|8. Header Valid| GLB_HEALTH
+      GLB_HEALTH -->|9. Route to Healthy Region| REGION1
+      GLB_HEALTH -->|9. Route to Healthy Region| REGION2
+      GLB_HEALTH -->|9. Route to Healthy Region| REGION3
+      
+      %% Bypass attempt flow
+      ATTACKER -->|Direct Access Attempt| DNS2
+      DNS2 -->|Route to| GLB
+      GLB -->|Check Header| GLB_SECURITY
+      GLB_SECURITY -->|No Valid Header| BYPASS_ATTEMPT
+      BYPASS_ATTEMPT -->|403 Forbidden| ATTACKER
+      
+      %% Styling
+      classDef secureNode fill:#d4edda,stroke:#155724,stroke-width:2px
+      classDef securityNode fill:#f8d7da,stroke:#721c24,stroke-width:2px
+      classDef dnsNode fill:#d1ecf1,stroke:#0c5460,stroke-width:2px
+      classDef backendNode fill:#e2e3e5,stroke:#383d41,stroke-width:2px
+      
+      class CLIENT,APIGEE,APIGEE_POLICIES,APIGEE_TARGET,GLB,GLB_SECURITY,GLB_HEALTH,REGION1,REGION2,REGION3 secureNode
+      class ATTACKER,BYPASS_ATTEMPT securityNode
+      class DNS1,DNS2 dnsNode
+      class SECURE_FLOW backendNode
+  </div>
   <p>Yes, you still need DNS, but its purpose and visibility change dramatically. The GLB&#39;s endpoint is no longer the primary public entry point for your users; Apigee is.</p>
   <p>Here&#39;s the breakdown of how DNS works in this layered architecture:</p>
   <ul>

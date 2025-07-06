@@ -20,6 +20,34 @@
   <div class="summary-block">
     This page explores how GCP Apigee functions as an L7 (application layer) load balancer within API management, compares it to traditional load balancers, and details how certificates are managed for secure API traffic.
   </div>
+
+  <h2>Table of Contents</h2>
+  <ol>
+    <li><a href="#apigee-s-role-vs-a-traditional-load-balancer">Apigee's Role vs. a Traditional Load Balancer</a></li>
+    <li><a href="#how-apigee-performs-load-balancing-its-type-">How Apigee Performs Load Balancing (Its "Type")</a></li>
+    <li><a href="#typical-gcp-architecture-with-apigee">Typical GCP Architecture with Apigee</a></li>
+    <li><a href="#what-are-tls-certificates-">What are TLS Certificates?</a></li>
+    <li><a href="#tls-and-apigee-s-load-balancing">TLS and Apigee's Load Balancing</a>
+      <ul>
+        <li><a href="#1-northbound-traffic-client-rightarrow-apigee-load-balancer-rightarrow-apigee-runtime-">1. Northbound Traffic (Client → Apigee Load Balancer → Apigee Runtime)</a></li>
+        <li><a href="#2-southbound-traffic-apigee-runtime-rightarrow-backend-load-balancer-rightarrow-backend-service-">2. Southbound Traffic (Apigee Runtime → Backend Load Balancer → Backend Service)</a></li>
+      </ul>
+    </li>
+    <li><a href="#apigee-global-external-https-load-balancer">Apigee + Global External HTTPS Load Balancer</a>
+      <ul>
+        <li><a href="#detailed-comparison">Detailed Comparison</a></li>
+        <li><a href="#the-recommended-enterprise-architecture-using-both-">The Recommended Enterprise Architecture (Using Both)</a></li>
+      </ul>
+    </li>
+    <li><a href="#dns-integration-with-apigee-glb">When both Apigee and GLB are used, do we still need GLB's integration with DNS?</a>
+      <ul>
+        <li><a href="#option-a-the-recommended-professional-approach-public-dns-but-secured-">Option A: The Recommended Professional Approach (Public DNS, but Secured)</a></li>
+        <li><a href="#option-b-the-simpler-less-flexible-approach-direct-ip-">Option B: The Simpler, Less-Flexible Approach (Direct IP)</a></li>
+        <li><a href="#conclusion-and-final-recommendation">Conclusion and Final Recommendation</a></li>
+      </ul>
+    </li>
+  </ol>
+
   <p>That&#39;s a very sharp question because the line between an API Gateway and a Load Balancer can be blurry.</p>
   <p>The answer is: <strong>Yes, Apigee performs load balancing, but it is fundamentally an L7 (Application Layer)
       device, not a traditional L4 load balancer.</strong></p>
@@ -348,7 +376,7 @@
   </div>
 
   <div>
-    <h2>Apigee + Global External HTTPS Load Balancer</h2>
+    <h2 id="apigee-global-external-https-load-balancer">Apigee + Global External HTTPS Load Balancer</h2>
     <p>Apigee is not a direct replacement for the Global External HTTPS Load Balancer for a high-availability architecture. They serve different primary purposes, and for a system of your scale and importance, you will almost always use them <em>together</em>.</p>
 <p>Think of it like building security for a high-profile event:</p>
 <ul>

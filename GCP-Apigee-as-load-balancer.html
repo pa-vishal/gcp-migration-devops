@@ -5,6 +5,10 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>GCP Apigee as Load Balancer</title>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <script>
+      mermaid.initialize({ startOnLoad: true });
+  </script>
   
       <link rel="stylesheet" href="styles.css">
 </head>
@@ -173,6 +177,67 @@
         visual cue is less common in modern browsers). Recommended for e-commerce and sensitive data.</li>
     </ul>
     <h3 id="tls-and-apigee-s-load-balancing">TLS and Apigee&#39;s Load Balancing</h3>
+    
+    <pre class="mermaid" style="width: 150%;">
+    flowchart TD
+        subgraph "Client Side"
+            A[API Client] -->|HTTPS Request| B[Browser/App]
+        end
+        
+        subgraph "Northbound Traffic - TLS Termination"
+            C[Google Cloud Load Balancer] -->|TLS Certificate| D[api.example.com cert]
+            C -->|TLS Termination| E[Decrypted HTTP]
+            C -->|DDoS Protection| F[Cloud Armor]
+        end
+        
+        subgraph "Apigee Runtime"
+            G[Apigee Message Processor] -->|API Key Validation| H[Security Policies]
+            G -->|Rate Limiting| I[Traffic Management]
+            G -->|Request Transformation| J[Mediation Layer]
+            G -->|Analytics| K[Monitoring & Logging]
+        end
+        
+        subgraph "Apigee Internal Load Balancer"
+            L[Target Endpoint] -->|Round Robin| M[Backend Server 1]
+            L -->|Weighted| N[Backend Server 2]
+            L -->|Least Connection| O[Backend Server 3]
+            L -->|Health Checks| P[Server Health Monitor]
+        end
+        
+        subgraph "Southbound Traffic - Backend TLS"
+            Q[Backend Load Balancer] -->|TLS Certificate| R[backend.example.com cert]
+            Q -->|mTLS if configured| S[Client Certificate]
+        end
+        
+        subgraph "Backend Services"
+            T[Spring Boot App 1] -->|Business Logic| U[Database]
+            V[Spring Boot App 2] -->|Business Logic| U
+            W[Spring Boot App 3] -->|Business Logic| U
+        end
+        
+        B -->|HTTPS| C
+        E -->|HTTP| G
+        G -->|HTTP/HTTPS| L
+        M -->|HTTPS| Q
+        N -->|HTTPS| Q
+        O -->|HTTPS| Q
+        Q -->|HTTPS| T
+        Q -->|HTTPS| V
+        Q -->|HTTPS| W
+        
+        style A fill:#4285f4,stroke:#333,stroke-width:2px,color:#fff
+        style C fill:#34a853,stroke:#333,stroke-width:2px,color:#fff
+        style G fill:#ea4335,stroke:#333,stroke-width:2px,color:#fff
+        style L fill:#ff9800,stroke:#333,stroke-width:2px,color:#000
+        style Q fill:#34a853,stroke:#333,stroke-width:2px,color:#fff
+        style T fill:#9c27b0,stroke:#333,stroke-width:2px,color:#fff
+        style V fill:#9c27b0,stroke:#333,stroke-width:2px,color:#fff
+        style W fill:#9c27b0,stroke:#333,stroke-width:2px,color:#fff
+        style D fill:#ffeb3b,stroke:#333,stroke-width:2px,color:#000
+        style R fill:#ffeb3b,stroke:#333,stroke-width:2px,color:#000
+        style S fill:#ffeb3b,stroke:#333,stroke-width:2px,color:#000
+    </pre>
+    
     <p>Yes, TLS certificates are absolutely involved when Apigee uses its load balancing feature, and they play a role
       in multiple &quot;hops&quot; of the API request flow. Apigee acts as a reverse proxy and an API gateway, sitting
       between your API consumers and your backend services.</p>

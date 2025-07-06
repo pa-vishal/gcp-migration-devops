@@ -158,12 +158,20 @@
   
   <pre class="mermaid">
   flowchart TD
+      subgraph "DNS Resolution"
+          DNS1[Local DNS Cache] -->|1. Check Cache| DNS2[ISP DNS Server]
+          DNS2 -->|2. Query| DNS3[Authoritative DNS]
+          DNS3 -->|3. Return| DNS4[Load Balancer IP<br/>203.0.113.10]
+          DNS4 -->|4. Cache Result| DNS1
+      end
+      
       subgraph "Client Side"
-          A[Client Browser] -->|HTTPS Request<br/>Port 443| B[Load Balancer]
+          A[Client Browser] -->|5. DNS Lookup| DNS1
+          A -->|6. HTTPS Request<br/>Port 443<br/>Host: api.example.com| B[Load Balancer<br/>203.0.113.10]
       end
       
       subgraph "Load Balancer Layer"
-          B --> C[TLS Handshake<br/>Certificate Validation]
+          B --> C[TLS Handshake<br/>Certificate Validation<br/>SNI: api.example.com]
           C --> D[Decrypt HTTPS Traffic<br/>Extract HTTP Request]
           D --> E[Load Balancing Decision<br/>Select Backend Server]
       end
@@ -182,11 +190,22 @@
           J --> A
       end
       
+      subgraph "Certificate Management"
+          CERT1[SSL Certificate<br/>api.example.com] -->|Presented during<br/>TLS Handshake| C
+          CERT2[Certificate Authority<br/>Let's Encrypt/Digicert] -->|Validates| CERT1
+      end
+      
       style A fill:#4285f4,stroke:#333,stroke-width:2px,color:#fff
       style B fill:#34a853,stroke:#333,stroke-width:2px,color:#fff
       style F fill:#ea4335,stroke:#333,stroke-width:2px,color:#fff
       style G fill:#ea4335,stroke:#333,stroke-width:2px,color:#fff
       style H fill:#ea4335,stroke:#333,stroke-width:2px,color:#fff
+      style DNS1 fill:#ff9800,stroke:#333,stroke-width:2px,color:#000
+      style DNS2 fill:#ff9800,stroke:#333,stroke-width:2px,color:#000
+      style DNS3 fill:#ff9800,stroke:#333,stroke-width:2px,color:#000
+      style DNS4 fill:#ff9800,stroke:#333,stroke-width:2px,color:#000
+      style CERT1 fill:#ffeb3b,stroke:#333,stroke-width:2px,color:#000
+      style CERT2 fill:#ffeb3b,stroke:#333,stroke-width:2px,color:#000
   </pre>
   
   <p>As we discussed, TLS offloading (or TLS termination) shifts the burden of cryptographic operations from your

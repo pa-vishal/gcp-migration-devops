@@ -347,6 +347,254 @@
 
   </div>
 
+  <div>
+    <h2>Apigee + Global External HTTPS Load Balancer</h2>
+    <p>Apigee is not a direct replacement for the Global External HTTPS Load Balancer for a high-availability architecture. They serve different primary purposes, and for a system of your scale and importance, you will almost always use them <em>together</em>.</p>
+<p>Think of it like building security for a high-profile event:</p>
+<ul>
+<li><strong>Global Load Balancer:</strong> This is your perimeter security and crowd control. It ensures a steady, orderly flow of people (traffic) to the right entrances (regions), and if one entrance has a problem (regional outage), it automatically redirects the entire crowd to other open entrances. Its job is purely about <strong>availability, routing, and health</strong>.</li>
+<li><strong>Apigee:</strong> This is your check-in desk and security <em>inside</em> the event. It checks each person&#39;s ticket (API key), verifies they have the right access level (OAuth scopes), ensures they don&#39;t cause trouble (rate limiting), and tracks who is attending (analytics). Its job is about <strong>security, policy, and business logic</strong>.</li>
+</ul>
+<p>You need both. You need the crowd control to handle the massive scale and potential venue problems, and you need the check-in desk to manage the individual attendees.</p>
+<hr>
+<h3 id="detailed-comparison">Detailed Comparison</h3>
+<p>Let&#39;s break down their capabilities point-by-point in the context of your REST API services.</p>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">Feature / Concern</th>
+<th style="text-align:left">Global External HTTPS Load Balancer</th>
+<th style="text-align:left">GCP Apigee</th>
+<th style="text-align:left">Verdict</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left"><strong>Primary Role</strong></td>
+<td style="text-align:left"><strong>Infrastructure-level</strong> L7 routing. Connects users to the best backend based on health and location.</td>
+<td style="text-align:left"><strong>API Management Platform.</strong> Acts as a proxy to enforce policies on your APIs.</td>
+<td style="text-align:left"><strong>Complementary, not interchangeable.</strong></td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>Multi-Region Failover</strong></td>
+<td style="text-align:left"><strong>Core Feature.</strong> This is its primary strength. It health-checks regional backends and routes around failures.</td>
+<td style="text-align:left"><strong>Not its primary job.</strong> Apigee itself is a regional or multi-regional service, but it doesn&#39;t provide <em>application-level</em> health checks and failover for your backends in the same robust way.</td>
+<td style="text-align:left"><strong>Load Balancer is required for this.</strong></td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>Latency-Based Routing</strong></td>
+<td style="text-align:left"><strong>Core Feature.</strong> Routes users to the geographically closest healthy backend region, minimizing latency.</td>
+<td style="text-align:left">No. It doesn&#39;t have the global anycast network to perform this function for end-users.</td>
+<td style="text-align:left"><strong>Load Balancer is required for this.</strong></td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>API Key Validation</strong></td>
+<td style="text-align:left">No. It has no concept of an API key.</td>
+<td style="text-align:left"><strong>Core Feature.</strong> Can validate API keys, secrets, and enforce product-level access.</td>
+<td style="text-align:left"><strong>Apigee is required for this.</strong></td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>OAuth/JWT Validation</strong></td>
+<td style="text-align:left">No. Passes tokens through but does not validate them.</td>
+<td style="text-align:left"><strong>Core Feature.</strong> Can act as an OAuth 2.0 authorization server or validate incoming JWTs.</td>
+<td style="text-align:left"><strong>Apigee is required for this.</strong></td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>Rate Limiting &amp; Quotas</strong></td>
+<td style="text-align:left">Limited. Can set a max RPS per instance/group, but this is a blunt instrument for DDoS protection.</td>
+<td style="text-align:left"><strong>Core Feature.</strong> Sophisticated control. Can set quotas per developer, per app, per API product (e.g., 1000 calls/day).</td>
+<td style="text-align:left"><strong>Apigee is required for sophisticated control.</strong></td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>Developer Portal</strong></td>
+<td style="text-align:left">Not applicable.</td>
+<td style="text-align:left"><strong>Core Feature.</strong> Provides a portal for developers to discover APIs, read documentation, and get keys.</td>
+<td style="text-align:left"><strong>Apigee provides this.</strong></td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>Analytics &amp; Monitoring</strong></td>
+<td style="text-align:left">Provides infrastructure metrics (request count, latency, bytes). Answers &quot;Is my infrastructure working?&quot;</td>
+<td style="text-align:left">Provides API-level metrics (traffic by API product, developer apps, latency per API method). Answers &quot;How is my API being used?&quot;</td>
+<td style="text-align:left"><strong>Both are needed for a complete picture.</strong></td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>Request/Response Transformation</strong></td>
+<td style="text-align:left">No. It&#39;s a pass-through proxy.</td>
+<td style="text-align:left"><strong>Core Feature.</strong> Can modify headers, transform payloads (e.g., XML to JSON), and orchestrate calls to multiple backends.</td>
+<td style="text-align:left"><strong>Apigee provides this.</strong></td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>Cloud CDN Integration</strong></td>
+<td style="text-align:left"><strong>Yes.</strong> Can cache responses at Google&#39;s edge, ideal for GET requests that return static or semi-static data.</td>
+<td style="text-align:left">No.</td>
+<td style="text-align:left"><strong>Load Balancer provides this.</strong></td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h3 id="the-recommended-enterprise-architecture-using-both-">The Recommended Enterprise Architecture (Using Both)</h3>
+<p>For your use case, the correct and most robust architecture has the request flow in this order:</p>
+<p><strong>User → Apigee → Global Load Balancer → Regional Cloud Run Services</strong></p>
+<pre><code>                                    +-----------------+
+                                    |<span class="hljs-string">     Apigee      </span>|<span class="hljs-string">  &lt;-- your-api.apigee.net (Public Facing)
+                                    </span>|<span class="hljs-string"> (API Management)</span>|
+                                    +--------+--------+
+                                             |<span class="hljs-string">
+                                             </span>|<span class="hljs-string">  (Apigee's TargetServer points to the LB)
+                                             </span>|
+                         +-----------------------------------+
+                         |<span class="hljs-string">      Global External HTTPS        </span>|<span class="hljs-string">  &lt;-- lb.your-internal-domain.com
+                         </span>|<span class="hljs-string">         Load Balancer             </span>|
+                         +-----------------+-----------------+
+                                           |<span class="hljs-string">
+                /--------------------------+------------------------\
+                </span>|<span class="hljs-string">                                                  </span>|
+     +-----------------------+                         +-----------------------+
+     |<span class="hljs-string"> Serverless NEG (us-central1) </span>|<span class="hljs-string">                </span>|<span class="hljs-string"> Serverless NEG (us-east1) </span>|
+     +----------+------------+                         +----------+------------+
+                |<span class="hljs-string">                                                  </span>|
+     +-----------------------+                         +-----------------------+
+     |<span class="hljs-string">  Cloud Run Service    </span>|<span class="hljs-string">                         </span>|<span class="hljs-string">  Cloud Run Service    </span>|
+     |<span class="hljs-string">   (Region: us-central1) </span>|<span class="hljs-string">                       </span>|<span class="hljs-string">   (Region: us-east1)  </span>|
+     +-----------------------+                         +-----------------------+
+</code></pre><p><strong>How it works:</strong></p>
+<ol>
+<li><strong>Public Entry Point:</strong> Your users, partners, and front-end applications make calls to the Apigee endpoint (<code>your-api.apigee.net</code>). This is the only endpoint you publish.</li>
+<li><strong>API Management Layer (Apigee):</strong> Apigee receives the request and executes its policies:<ul>
+<li>Verifies the API Key.</li>
+<li>Checks the OAuth token.</li>
+<li>Ensures the developer hasn&#39;t exceeded their rate limit/quota.</li>
+<li>Logs detailed analytics about the API call.</li>
+</ul>
+</li>
+<li><strong>Infrastructure Routing Layer (GLB):</strong> Once the request is validated, Apigee forwards it to its configured backend target. This target is <strong>the static IP address of your Global Load Balancer</strong>.</li>
+<li><strong>High Availability Routing:</strong> The Load Balancer receives the request from Apigee. It performs its health checks and routes the request to the nearest, healthiest Cloud Run service (e.g., in <code>us-central1</code>).</li>
+<li><strong>Failover:</strong> If your <code>us-central1</code> Cloud Run deployment goes down, the Load Balancer&#39;s health check fails. It automatically stops sending traffic there and routes all subsequent requests from Apigee to <code>us-east1</code>, providing seamless failover without Apigee or the end-user even knowing.</li>
+</ol>
+<p><strong>Conclusion:</strong> For an enterprise application with 100,000+ users exposing REST APIs, you cannot replace the Global Load Balancer with Apigee. The Load Balancer is your fundamental building block for <strong>availability and performance</strong>. Apigee sits in front of it as your essential building block for <strong>security and management</strong>. They are complementary partners in a robust, enterprise-grade API architecture.</p>
+
+  </div>
+
+<div>
+  <h2>When both Apigee and GLB are used, do we still need GLB's integration with DNS ?</h2>
+  <p>Yes, you still need DNS, but its purpose and visibility change dramatically. The GLB&#39;s endpoint is no longer the primary public entry point for your users; Apigee is.</p>
+  <p>Here&#39;s the breakdown of how DNS works in this layered architecture:</p>
+  <ul>
+  <li><p><strong>Public-Facing DNS (For Apigee):</strong> This is the record your end-users will use. It points to your Apigee instance.</p>
+  <ul>
+  <li><strong>Record:</strong> <code>api.your-domain.com</code></li>
+  <li><strong>Type:</strong> <code>A</code> Record</li>
+  <li><strong>Points To:</strong> The public IP address of your Apigee environment&#39;s ingress.</li>
+  </ul>
+  </li>
+  <li><p><strong>Internal-Facing DNS (For the GLB):</strong> This is the record that <strong>Apigee uses</strong> to find the Global Load Balancer. It does NOT need to be easily discoverable or user-friendly. You have two excellent options here.</p>
+  </li>
+  </ul>
+  <hr>
+  <h3 id="option-a-the-recommended-professional-approach-public-dns-but-secured-">Option A: The Recommended Professional Approach (Public DNS, but Secured)</h3>
+  <p>In this model, you still create a public DNS record for the GLB&#39;s static IP, but you treat it as an internal implementation detail and secure the GLB so it only accepts traffic from Apigee.</p>
+  <p><strong>1. How DNS is Configured:</strong></p>
+  <ul>
+  <li>You create a new, non-obvious DNS record. It can be a subdomain of your main domain.</li>
+  <li><strong>Record:</strong> <code>api-glb.internal.your-domain.com</code> (or something similar)</li>
+  <li><strong>Type:</strong> <code>A</code> Record</li>
+  <li><strong>Points To:</strong> The static IP address of your Global Load Balancer.</li>
+  </ul>
+  <p><strong>2. How Apigee is Configured:</strong></p>
+  <ul>
+  <li>In your Apigee <code>TargetServer</code> configuration, you set the hostname to <code>api-glb.internal.your-domain.com</code>.</li>
+  </ul>
+  <p><strong>3. How it&#39;s Secured (This is the critical part):</strong></p>
+  <p>You must prevent users from bypassing Apigee and hitting your GLB directly. You do this by making the GLB reject any traffic that doesn&#39;t come from Apigee. The best way is to use a custom header.</p>
+  <ul>
+  <li><p><strong>In Apigee:</strong> In the <code>TargetEndpoint</code> request flow, add a policy (like <code>AssignMessage</code>) to inject a static header with a secret value.</p>
+  <pre><code class="lang-xml"><span class="hljs-comment">&lt;!-- In Apigee TargetEndpoint PreFlow --&gt;</span>
+  <span class="hljs-tag">&lt;<span class="hljs-name">Request</span>&gt;</span>
+    <span class="hljs-tag">&lt;<span class="hljs-name">Step</span>&gt;</span>
+      <span class="hljs-tag">&lt;<span class="hljs-name">Name</span>&gt;</span>Add-Internal-Auth-Header<span class="hljs-tag">&lt;/<span class="hljs-name">Name</span>&gt;</span>
+    <span class="hljs-tag">&lt;/<span class="hljs-name">Step</span>&gt;</span>
+  <span class="hljs-tag">&lt;/<span class="hljs-name">Request</span>&gt;</span>
+  </code></pre>
+  <p>The <code>Add-Internal-Auth-Header</code> policy would be:</p>
+  <pre><code class="lang-xml"><span class="hljs-tag">&lt;<span class="hljs-name">AssignMessage</span> <span class="hljs-attr">name</span>=<span class="hljs-string">"Add-Internal-Auth-Header"</span>&gt;</span>
+    <span class="hljs-tag">&lt;<span class="hljs-name">Add</span>&gt;</span>
+      <span class="hljs-tag">&lt;<span class="hljs-name">Headers</span>&gt;</span>
+        <span class="hljs-tag">&lt;<span class="hljs-name">Header</span> <span class="hljs-attr">name</span>=<span class="hljs-string">"X-Internal-Secret"</span>&gt;</span>a-very-long-and-random-secret-value<span class="hljs-tag">&lt;/<span class="hljs-name">Header</span>&gt;</span>
+      <span class="hljs-tag">&lt;/<span class="hljs-name">Headers</span>&gt;</span>
+    <span class="hljs-tag">&lt;/<span class="hljs-name">Add</span>&gt;</span>
+    <span class="hljs-tag">&lt;<span class="hljs-name">AssignTo</span> <span class="hljs-attr">createNew</span>=<span class="hljs-string">"false"</span> <span class="hljs-attr">type</span>=<span class="hljs-string">"request"</span>/&gt;</span>
+  <span class="hljs-tag">&lt;/<span class="hljs-name">AssignMessage</span>&gt;</span>
+  </code></pre>
+  </li>
+  <li><p><strong>In the Global Load Balancer:</strong> You use a <strong>Backend Service Policy</strong> (a feature of the LB) to inspect incoming headers. If the <code>X-Internal-Secret</code> header is not present or doesn&#39;t have the correct value, you reject the request with a <code>403 Forbidden</code>.</p>
+  </li>
+  </ul>
+  <p><strong>Diagram:</strong></p>
+  <pre><code>U<span class="hljs-function"><span class="hljs-title">ser</span> --&gt;</span> [<span class="hljs-function"><span class="hljs-title">api</span>.your-domain.com] --&gt;</span> A<span class="hljs-function"><span class="hljs-title">pigee</span> --&gt;</span> [A<span class="hljs-function"><span class="hljs-title">dds</span> X-Internal-Secret Header] --&gt;</span> [<span class="hljs-function"><span class="hljs-title">api</span>-glb.internal.your-domain.com] --&gt;</span> GLB --&gt; [C<span class="hljs-function"><span class="hljs-title">hecks</span> <span class="hljs-keyword">for</span> Header, OK] --&gt;</span> Cloud Run
+  </code></pre><pre><code>A<span class="hljs-function"><span class="hljs-title">ttacker</span> --&gt;</span> [D<span class="hljs-function"><span class="hljs-title">iscovers</span> &amp; calls api-glb.internal.your-domain.com] --&gt;</span> GLB --&gt; [C<span class="hljs-function"><span class="hljs-title">hecks</span> <span class="hljs-keyword">for</span> Header, NOT FOUND] --&gt;</span> REJECT (<span class="hljs-number">403</span>)
+  </code></pre><p><strong>Why is this the recommended approach?</strong>
+  It correctly uses hostnames instead of hardcoded IPs (which is a best practice for configuration management) while ensuring the GLB is not an insecure backdoor into your system.</p>
+  <hr>
+  <h3 id="option-b-the-simpler-less-flexible-approach-direct-ip-">Option B: The Simpler, Less-Flexible Approach (Direct IP)</h3>
+  <p>In this model, you don&#39;t create a DNS record for the GLB at all.</p>
+  <p><strong>1. How DNS is Configured:</strong></p>
+  <ul>
+  <li>No DNS record is created for the GLB.</li>
+  </ul>
+  <p><strong>2. How Apigee is Configured:</strong></p>
+  <ul>
+  <li>In your Apigee <code>TargetServer</code> configuration, you hardcode the static IP address of the Global Load Balancer as the host.</li>
+  </ul>
+  <p><strong>Why might you do this?</strong>
+  It&#39;s slightly simpler as it avoids one DNS entry.</p>
+  <p><strong>What are the downsides?</strong></p>
+  <ul>
+  <li><strong>Brittleness:</strong> Using &quot;magic IPs&quot; in configuration is generally considered an anti-pattern. If for any reason that IP address ever needs to change, you have to find and update your Apigee configuration. Using a hostname abstracts this away.</li>
+  <li><strong>Readability:</strong> Hostnames are more readable and self-documenting than IP addresses.</li>
+  <li><strong>Security:</strong> This approach is <strong>no more secure</strong> than Option A. The GLB still has a public IP that can be scanned and found. You <strong>still must implement the header-checking security measure</strong> described in Option A to prevent bypass.</li>
+  </ul>
+  <hr>
+  <h3 id="conclusion-and-final-recommendation">Conclusion and Final Recommendation</h3>
+  <table>
+  <thead>
+  <tr>
+  <th style="text-align:left">Aspect</th>
+  <th style="text-align:left"><strong>Option A (Recommended)</strong></th>
+  <th style="text-align:left"><strong>Option B (Simpler)</strong></th>
+  </tr>
+  </thead>
+  <tbody>
+  <tr>
+  <td style="text-align:left"><strong>DNS for GLB</strong></td>
+  <td style="text-align:left"><strong>Yes</strong>, create a non-obvious public A record.</td>
+  <td style="text-align:left"><strong>No.</strong></td>
+  </tr>
+  <tr>
+  <td style="text-align:left"><strong>Apigee Target</strong></td>
+  <td style="text-align:left">Hostname (e.g., <code>api-glb.internal.your-domain.com</code>)</td>
+  <td style="text-align:left">IP Address (e.g., <code>34.111.22.33</code>)</td>
+  </tr>
+  <tr>
+  <td style="text-align:left"><strong>Flexibility</strong></td>
+  <td style="text-align:left">High. Can change the IP without changing Apigee config.</td>
+  <td style="text-align:left">Low. IP changes require config updates.</td>
+  </tr>
+  <tr>
+  <td style="text-align:left"><strong>Security</strong></td>
+  <td style="text-align:left"><strong>Identical.</strong> Both require security hardening (e.g., header check) on the GLB to prevent bypass.</td>
+  <td style="text-align:left"><strong>Identical.</strong> Both require security hardening on the GLB.</td>
+  </tr>
+  <tr>
+  <td style="text-align:left"><strong>Best Practice</strong></td>
+  <td style="text-align:left"><strong>Follows best practices</strong> by avoiding hardcoded IPs.</td>
+  <td style="text-align:left">Uses a &quot;magic number&quot; which is an anti-pattern.</td>
+  </tr>
+  </tbody>
+  </table>
+  <p><strong>Final Verdict:</strong> Use <strong>Option A</strong>. The minimal effort of creating one extra DNS record buys you a more flexible, maintainable, and professional architecture that aligns with standard SRE principles. The critical takeaway is that regardless of your choice, you <strong>must</strong> secure the GLB to only accept traffic originating from your Apigee instance.</p>
+  
+</div>
+
   <div class="watermark">Vishal Patil</div>
 </body>
 

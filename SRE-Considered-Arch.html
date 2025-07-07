@@ -6,6 +6,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>SRE-Considered Architecture for Cloud Run</title>
   <link rel="stylesheet" href="styles.css">
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <script>
+      mermaid.initialize({ startOnLoad: true });
+  </script>
 </head>
 
 <body class="markdown-body">
@@ -14,6 +18,84 @@
   <div class="summary-block">
     This page provides a comprehensive Site Reliability Engineering (SRE) plan for Google Cloud Run, covering availability, latency, and performance strategies for handling 100,000+ concurrent users with proper SLIs, SLOs, and implementation details.
   </div>
+
+  <div class="mermaid" style="width: 175%;">
+flowchart TD
+    TITLE[SRE-Considered Architecture<br/>Google Cloud Run]
+    
+    AVAIL_GOAL[Goal: Ensure services are up, responsive<br/>and not returning errors]
+    AVAIL_SLI[SLIs: HTTP Response Success Rate<br/>System Uptime via External Probes]
+    AVAIL_SLO[SLO: 99.9% over 28 days<br/>Error Budget: 43 min/month]
+    
+    AVAIL_STRATEGY1[Multi-Region Deployment<br/>us-central1, us-east1, europe-west1]
+    AVAIL_STRATEGY2[Global External HTTPS LB<br/>Serverless NEGs per region<br/>Cloud CDN for static assets]
+    AVAIL_STRATEGY3[Robust Health Checks<br/>/healthz endpoint]
+    AVAIL_STRATEGY4[Smart Autoscaling<br/>--min-instances: 1-2<br/>--max-instances: 100<br/>--concurrency: 10-20]
+    
+    LAT_GOAL[Goal: Fast request processing<br/>Slow is the new down]
+    LAT_SLI[SLIs: Request Latency p50, p95, p99<br/>Cold Start Duration]
+    LAT_SLO[SLOs: p50 < 150ms<br/>p95 < 500ms]
+    
+    LAT_STRATEGY1[Eliminate Cold Starts<br/>--min-instances for baseline traffic]
+    LAT_STRATEGY2[Optimize Instance Resources<br/>--cpu-always-allocated<br/>Profile with Cloud Profiler]
+    LAT_STRATEGY3[Optimize Container<br/>Minimal base image alpine/distroless<br/>Multi-stage Docker builds]
+    LAT_STRATEGY4[Location Optimization<br/>Co-locate Cloud Run, Memorystore, Cloud SQL]
+    
+    PERF_GOAL[Goal: Handle throughput efficiently<br/>without saturation]
+    PERF_SLI[SLIs: CPU/Memory utilization<br/>Requests per second RPS]
+    PERF_SLO[SLO: CPU < 60% during peak<br/>40% headroom for spikes]
+    
+    PERF_STRATEGY1[Connection Management<br/>Private IP + Serverless VPC Connector<br/>Connection pooling 2-5 per instance]
+    PERF_STRATEGY2[Asynchronous Workloads<br/>Pub/Sub for heavy tasks<br/>Return 202 Accepted immediately]
+    PERF_STRATEGY3[Effective Caching<br/>Cloud CDN for frontend<br/>Memorystore Redis for app data]
+    
+    CI_CD[CI/CD Pipeline<br/>Multi-region deployment]
+    MONITORING[Cloud Monitoring<br/>Uptime Checks, Custom Metrics, Alerting]
+    PROFILING[Cloud Profiler<br/>Performance optimization]
+    
+    TITLE --> AVAIL_GOAL
+    TITLE --> LAT_GOAL
+    TITLE --> PERF_GOAL
+    
+    AVAIL_GOAL --> AVAIL_SLI
+    AVAIL_SLI --> AVAIL_SLO
+    AVAIL_SLO --> AVAIL_STRATEGY1
+    AVAIL_SLO --> AVAIL_STRATEGY2
+    AVAIL_SLO --> AVAIL_STRATEGY3
+    AVAIL_SLO --> AVAIL_STRATEGY4
+    
+    LAT_GOAL --> LAT_SLI
+    LAT_SLI --> LAT_SLO
+    LAT_SLO --> LAT_STRATEGY1
+    LAT_SLO --> LAT_STRATEGY2
+    LAT_SLO --> LAT_STRATEGY3
+    LAT_SLO --> LAT_STRATEGY4
+    
+    PERF_GOAL --> PERF_SLI
+    PERF_SLI --> PERF_SLO
+    PERF_SLO --> PERF_STRATEGY1
+    PERF_SLO --> PERF_STRATEGY2
+    PERF_SLO --> PERF_STRATEGY3
+    
+    AVAIL_STRATEGY1 --> CI_CD
+    AVAIL_STRATEGY2 --> MONITORING
+    LAT_STRATEGY2 --> PROFILING
+    PERF_STRATEGY1 --> MONITORING
+    
+    classDef titleNode fill:#e3f2fd,stroke:#1976d2,stroke-width:3px
+    classDef goalNode fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
+    classDef sliNode fill:#e8f5e8,stroke:#388e3c,stroke-width:2px
+    classDef sloNode fill:#fff3e0,stroke:#f57c00,stroke-width:2px
+    classDef strategyNode fill:#fce4ec,stroke:#c2185b,stroke-width:2px
+    classDef implNode fill:#e0f2f1,stroke:#00695c,stroke-width:2px
+    
+    class TITLE titleNode
+    class AVAIL_GOAL,LAT_GOAL,PERF_GOAL goalNode
+    class AVAIL_SLI,LAT_SLI,PERF_SLI sliNode
+    class AVAIL_SLO,LAT_SLO,PERF_SLO sloNode
+    class AVAIL_STRATEGY1,AVAIL_STRATEGY2,AVAIL_STRATEGY3,AVAIL_STRATEGY4,LAT_STRATEGY1,LAT_STRATEGY2,LAT_STRATEGY3,LAT_STRATEGY4,PERF_STRATEGY1,PERF_STRATEGY2,PERF_STRATEGY3 strategyNode
+    class CI_CD,MONITORING,PROFILING implNode
+</div>
 
   <p>Thinking about Site Reliability Engineering (SRE) from day one is what separates successful, scalable systems from those that crumble under load. This proactive approach is the mark of a senior developer or architect.</p>
 <p>Let&#39;s break down the SRE plan for your application, starting, as you requested, with <strong>Google Cloud Run</strong>. Given your scale of 100,000 concurrent users, we cannot treat Cloud Run as a simple &quot;deploy and forget&quot; service. We must engineer it for resilience and speed.</p>

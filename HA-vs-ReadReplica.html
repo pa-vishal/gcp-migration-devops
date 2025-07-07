@@ -149,7 +149,86 @@
       10.1.1.1 in <code>us-central1-b</code>) as its replication source.</li>
   </ul>
   <p><strong>Your required action for the read replica is: NOTHING.</strong> This is handled for you automatically.</p>
-  <h3 id="summary-table-roles-actions">Summary Table: Roles &amp; Actions</h3>
+
+  <div class="mermaid">
+flowchart TD
+    subgraph "Initial State (Before Failover)"
+        PRIMARY_OLD[Primary Instance<br/>us-central1-a<br/>IP: 10.1.1.1<br/>Status: Active]
+        HA_STANDBY_OLD[HA Standby<br/>us-central1-b<br/>Status: Passive<br/>No IP Address]
+        READ_REPLICA_OLD[Read Replica<br/>us-central1-c<br/>IP: 10.2.2.2<br/>Replicating from: 10.1.1.1]
+        APP_WRITE_OLD[Application<br/>Write Connections<br/>Target: 10.1.1.1]
+        APP_READ_OLD[Application<br/>Read Connections<br/>Target: 10.2.2.2]
+    end
+    
+    subgraph "Step 1: Failure Detection"
+        FAILURE[Zone Failure<br/>us-central1-a<br/>Primary becomes unresponsive]
+        HEALTH_CHECK[Google Cloud<br/>Health Checks<br/>Detect failure within seconds]
+    end
+    
+    subgraph "Step 2: Automatic HA Failover"
+        HA_PROMOTION[HA Standby Promotion<br/>us-central1-b becomes new Primary]
+        IP_TAKEOVER[IP Address Takeover<br/>New Primary inherits 10.1.1.1]
+        CONNECTION_DROP[Brief Connection Drop<br/>1-2 minutes]
+        AUTO_RECONNECT[Automatic Reconnection<br/>Same IP, new instance]
+    end
+    
+    subgraph "Step 3: Read Replica Reconfiguration"
+        REPLICATION_BREAK[Replication Link Breaks<br/>No updates from old primary]
+        CLOUD_SQL_MANAGEMENT[Cloud SQL Management<br/>Detects topology change]
+        AUTO_REPOINT[Automatic Re-pointing<br/>Replica → New Primary 10.1.1.1]
+        REPLICATION_RESUME[Replication Resumes<br/>Catch up on missed transactions]
+    end
+    
+    subgraph "Final State (After Failover)"
+        PRIMARY_NEW[New Primary<br/>us-central1-b<br/>IP: 10.1.1.1<br/>Status: Active]
+        HA_STANDBY_NEW[New HA Standby<br/>us-central1-a<br/>Status: Passive<br/>No IP Address]
+        READ_REPLICA_NEW[Read Replica<br/>us-central1-c<br/>IP: 10.2.2.2<br/>Replicating from: 10.1.1.1]
+        APP_WRITE_NEW[Application<br/>Write Connections<br/>Target: 10.1.1.1<br/>Status: Reconnected]
+        APP_READ_NEW[Application<br/>Read Connections<br/>Target: 10.2.2.2<br/>Status: Normal]
+    end
+    
+    %% Initial state connections
+    APP_WRITE_OLD -->|Write Traffic| PRIMARY_OLD
+    APP_READ_OLD -->|Read Traffic| READ_REPLICA_OLD
+    PRIMARY_OLD -->|Synchronous Replication| HA_STANDBY_OLD
+    PRIMARY_OLD -->|Asynchronous Replication| READ_REPLICA_OLD
+    
+    %% Failure sequence
+    PRIMARY_OLD -->|Zone Failure| FAILURE
+    FAILURE -->|Triggers| HEALTH_CHECK
+    HEALTH_CHECK -->|Initiates| HA_PROMOTION
+    
+    %% HA failover
+    HA_PROMOTION -->|Promotes| HA_STANDBY_OLD
+    HA_PROMOTION -->|Results in| IP_TAKEOVER
+    IP_TAKEOVER -->|Causes| CONNECTION_DROP
+    CONNECTION_DROP -->|Followed by| AUTO_RECONNECT
+    
+    %% Read replica handling
+    FAILURE -->|Causes| REPLICATION_BREAK
+    REPLICATION_BREAK -->|Detected by| CLOUD_SQL_MANAGEMENT
+    CLOUD_SQL_MANAGEMENT -->|Triggers| AUTO_REPOINT
+    AUTO_REPOINT -->|Enables| REPLICATION_RESUME
+    
+    %% Final state connections
+    APP_WRITE_NEW -->|Write Traffic| PRIMARY_NEW
+    APP_READ_NEW -->|Read Traffic| READ_REPLICA_NEW
+    PRIMARY_NEW -->|Synchronous Replication| HA_STANDBY_NEW
+    PRIMARY_NEW -->|Asynchronous Replication| READ_REPLICA_NEW
+    
+    %% Styling
+    classDef normalNode fill:#d4edda,stroke:#155724,stroke-width:2px
+    classDef failureNode fill:#f8d7da,stroke:#721c24,stroke-width:2px
+    classDef processNode fill:#d1ecf1,stroke:#0c5460,stroke-width:2px
+    classDef standbyNode fill:#e2e3e5,stroke:#383d41,stroke-width:2px
+    
+    class PRIMARY_OLD,PRIMARY_NEW,READ_REPLICA_OLD,READ_REPLICA_NEW,APP_WRITE_OLD,APP_WRITE_NEW,APP_READ_OLD,APP_READ_NEW normalNode
+    class FAILURE,REPLICATION_BREAK,CONNECTION_DROP failureNode
+    class HEALTH_CHECK,HA_PROMOTION,IP_TAKEOVER,AUTO_RECONNECT,CLOUD_SQL_MANAGEMENT,AUTO_REPOINT,REPLICATION_RESUME processNode
+    class HA_STANDBY_OLD,HA_STANDBY_NEW standbyNode
+  </div>
+
+  <h3 id="summary-table-roles-actions">Summary Table: Roles & Actions</h3>
   <table>
     <thead>
       <tr>

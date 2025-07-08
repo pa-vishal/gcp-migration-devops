@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SRE-Considered Architecture for Redis</title>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <script>
+      mermaid.initialize({ startOnLoad: true });
+  </script>
+  <link rel="stylesheet" href="styles.css">
+</head>
+
+<body class="markdown-body">
+
+  <h1>SRE-Considered Architecture for Redis</h1>
+  <div class="summary-block">
+    This page provides a comprehensive Site Reliability Engineering (SRE) plan for Google Cloud Memorystore Redis, covering availability, latency, and performance strategies for handling high-performance caching with proper SLIs, SLOs, and implementation details for the in-memory data store.
+  </div>
+
+  <div class="mermaid" style="width: 175%;">
+flowchart TD
+    TITLE[SRE-Considered Architecture<br/>Google Cloud Memorystore Redis]
+    
+    AVAIL_GOAL[Goal: Ensure Redis is accessible and responsive<br/>with transparent fast failover]
+    AVAIL_SLI[SLIs: Uptime metric<br/>Successful Connection Rate<br/>Failover Events]
+    AVAIL_SLO[SLO: 99.9% availability over 28 days<br/>RTO < 30 seconds, RPO: seconds]
+    
+    AVAIL_STRATEGY1[Use STANDARD_HA Tier<br/>Primary and replica in different zones<br/>Automatic failover with no code changes]
+    AVAIL_STRATEGY2[Application-Level Fallback Logic<br/>try/catch around Redis GET calls<br/>Fallback to database on Redis failure]
+    AVAIL_STRATEGY3[Graceful Connection Handling<br/>Robust Redis client libraries<br/>Automatic reconnection after failover]
+    
+    LAT_GOAL[Goal: Fulfill core promise of in-memory cache<br/>sub-millisecond response times]
+    LAT_SLI[SLIs: Client-Side Observed Latency<br/>Server-Side Latency]
+    LAT_SLO[SLO: p99 Client-Side Latency < 5ms<br/>Aggressive but achievable goal]
+    
+    LAT_STRATEGY1[Network Proximity<br/>Same region and VPC network<br/>Serverless VPC Connector]
+    LAT_STRATEGY2[Use Efficient Redis Commands<br/>Avoid KEYS *, SMEMBERS on large sets<br/>Use SCAN, prefer O1 or Olog N operations]
+    
+    PERF_GOAL[Goal: Sufficient memory and CPU<br/>without evicting needed data]
+    PERF_SLI[SLIs: Memory Usage Ratio<br/>CPU Utilization, Evicted Keys]
+    PERF_SLO[SLO: Memory Usage < 80%<br/>CPU Utilization < 60%]
+    
+    PERF_STRATEGY1[Right-Sizing and Proactive Scaling<br/>Monitor memory usage ratio<br/>Scale up before hitting 80% limit]
+    PERF_STRATEGY2[Set Maxmemory Eviction Policy<br/>allkeys-lru policy<br/>Intelligently remove old data]
+    PERF_STRATEGY3[Set TTL on All Keys<br/>Practice good cache hygiene<br/>Prevent stale data accumulation]
+    
+    MONITORING[Cloud Monitoring<br/>Memory ratio alerts, CPU monitoring]
+    FALLBACK[Database Fallback<br/>Cloud SQL on Redis failure]
+    CLIENT[Redis Client Libraries<br/>Connection pooling, auto-reconnect]
+    
+    TITLE --> AVAIL_GOAL
+    TITLE --> LAT_GOAL
+    TITLE --> PERF_GOAL
+    
+    AVAIL_GOAL --> AVAIL_SLI
+    AVAIL_SLI --> AVAIL_SLO
+    AVAIL_SLO --> AVAIL_STRATEGY1
+    AVAIL_SLO --> AVAIL_STRATEGY2
+    AVAIL_SLO --> AVAIL_STRATEGY3
+    
+    LAT_GOAL --> LAT_SLI
+    LAT_SLI --> LAT_SLO
+    LAT_SLO --> LAT_STRATEGY1
+    LAT_SLO --> LAT_STRATEGY2
+    
+    PERF_GOAL --> PERF_SLI
+    PERF_SLI --> PERF_SLO
+    PERF_SLO --> PERF_STRATEGY1
+    PERF_SLO --> PERF_STRATEGY2
+    PERF_SLO --> PERF_STRATEGY3
+    
+    AVAIL_STRATEGY1 --> MONITORING
+    AVAIL_STRATEGY2 --> FALLBACK
+    AVAIL_STRATEGY3 --> CLIENT
+    LAT_STRATEGY1 --> CLIENT
+    PERF_STRATEGY1 --> MONITORING
+    
+    classDef titleNode fill:#e3f2fd,stroke:#1976d2,stroke-width:3px
+    classDef goalNode fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
+    classDef sliNode fill:#e8f5e8,stroke:#388e3c,stroke-width:2px
+    classDef sloNode fill:#fff3e0,stroke:#f57c00,stroke-width:2px
+    classDef strategyNode fill:#fce4ec,stroke:#c2185b,stroke-width:2px
+    classDef implNode fill:#e0f2f1,stroke:#00695c,stroke-width:2px
+    
+    class TITLE titleNode
+    class AVAIL_GOAL,LAT_GOAL,PERF_GOAL goalNode
+    class AVAIL_SLI,LAT_SLI,PERF_SLI sliNode
+    class AVAIL_SLO,LAT_SLO,PERF_SLO sloNode
+    class AVAIL_STRATEGY1,AVAIL_STRATEGY2,AVAIL_STRATEGY3,LAT_STRATEGY1,LAT_STRATEGY2,PERF_STRATEGY1,PERF_STRATEGY2,PERF_STRATEGY3 strategyNode
+    class MONITORING,FALLBACK,CLIENT implNode
+</div>
+
+  <p>In your architecture, Memorystore is a high-performance engine for speed and efficiency. Its primary SRE goals are twofold: first, to be a reliable and fast cache to shield your PostgreSQL database from excessive read load, and second, to provide a low-latency data store for things like session management or real-time counters.</p>
+<p>A failure or slowdown in Memorystore doesn&#39;t mean data loss (like with Postgres), but it can trigger a &quot;performance catastrophe&quot; where your fast, responsive application suddenly becomes slow and sluggish as it falls back to the database.</p>
+<hr>
+<h3 id="sre-plan-memorystore-for-redis">SRE Plan: Memorystore for Redis</h3>
+<p><strong>Goal:</strong> Provide a consistently fast, highly available in-memory data store that improves application performance and absorbs read traffic that would otherwise hit the primary database.</p>
+<hr>
+<h3 id="1-availability">1. Availability</h3>
+<p><strong>Goal:</strong> Ensure the Redis instance is accessible and responsive, with a transparent and fast failover process that minimizes impact on the application.</p>
+<h4 id="-slis-what-we-measure-"><strong>SLIs (What We Measure):</strong></h4>
+<ul>
+<li><strong>Uptime:</strong> The built-in <code>redis.googleapis.com/uptime</code> metric provided by Cloud Monitoring.</li>
+<li><strong>Successful Connection Rate:</strong> The percentage of successful connection attempts from your Cloud Run services&#39; Redis clients.</li>
+<li><strong>Failover Events:</strong> A log-based metric to track how often the instance automatically fails over. While failover is a feature, frequent events indicate underlying instability.</li>
+</ul>
+<h4 id="-slos-our-target-"><strong>SLOs (Our Target):</strong></h4>
+<ul>
+<li><strong>Availability:</strong> <strong>99.9%</strong> over a rolling 28-day period.<ul>
+<li><em>Why this target?</em> This is the SLA provided by the Memorystore for Redis <code>STANDARD_HA</code> tier.</li>
+</ul>
+</li>
+<li><strong>Recovery Time Objective (RTO):</strong> <strong>&lt; 30 seconds</strong>. This is the typical time for an automatic failover from the primary to the replica node to complete.</li>
+<li><strong>Recovery Point Objective (RPO):</strong> <strong>Seconds</strong>. Because replication between the primary and replica is asynchronous, there is a small possibility of losing a few seconds of writes during a failover. This is an acceptable risk for cache data.</li>
+</ul>
+<h4 id="-how-to-achieve-and-maintain-the-slo-"><strong>How to Achieve and Maintain the SLO:</strong></h4>
+<ol>
+<li><p><strong>Use the STANDARD_HA Tier (Non-Negotiable for Production):</strong></p>
+<ul>
+<li><strong>Plan:</strong> Provision your instance in the High Availability tier.</li>
+<li><strong>Implementation:</strong> When creating the instance, select <code>Tier: STANDARD_HA</code>. This creates a primary and a replica node in different zones within your chosen region.</li>
+<li><strong>How it Works:</strong> Memorystore automatically monitors the primary node. If it fails, Memorystore promotes the replica to be the new primary and updates the internal IP endpoint that your application connects to. This failover is automatic and requires no changes in your application code.</li>
+</ul>
+</li>
+<li><p><strong>Application-Level Fallback Logic (CRITICAL):</strong></p>
+<ul>
+<li><strong>Plan:</strong> Your application must be resilient to a Redis outage. A cache being unavailable should slow your application down, not bring it down entirely.</li>
+<li><strong>Implementation:</strong> In your application&#39;s data access layer, wrap all Redis <code>GET</code> calls in a <code>try/catch</code> block.<ul>
+<li><strong>On Success:</strong> Return the data from Redis.</li>
+<li><strong>On Failure (Redis is down):</strong> Log the error, fetch the data directly from your Cloud SQL database, and return it to the user. <strong>Do not</strong> write this data back to Redis in the fallback path, as you could overwhelm Redis when it comes back online (a &quot;thundering herd&quot; problem).</li>
+<li>This ensures that even during the brief failover window or a rare outage, your application remains functional, albeit slower.</li>
+</ul>
+</li>
+</ul>
+</li>
+<li><p><strong>Graceful Connection Handling:</strong></p>
+<ul>
+<li><strong>Plan:</strong> Use a Redis client library in your Cloud Run services that is robust to connection drops.</li>
+<li><strong>Implementation:</strong> All modern Redis clients (e.g., <code>redis-py</code>, <code>ioredis</code> for Node.js) have built-in logic for connection pooling and automatic reconnection. Ensure this is configured correctly. This allows your application to seamlessly reconnect after a failover event.</li>
+</ul>
+</li>
+</ol>
+<hr>
+<h3 id="2-latency">2. Latency</h3>
+<p><strong>Goal:</strong> Fulfill the core promise of an in-memory cache: sub-millisecond response times.</p>
+<h4 id="-slis-what-we-measure-"><strong>SLIs (What We Measure):</strong></h4>
+<ul>
+<li><strong>Client-Side Observed Latency:</strong> The p50, p95, and p99 latency for Redis commands as measured by your application. This is the most important latency metric as it represents the true user experience.</li>
+<li><strong>Server-Side Latency:</strong> The <code>redis.googleapis.com/stats/latency/mean</code> metric in Cloud Monitoring. Useful for differentiating network latency from command processing latency.</li>
+</ul>
+<h4 id="-slos-our-target-"><strong>SLOs (Our Target):</strong></h4>
+<ul>
+<li><strong>p99 Client-Side Latency:</strong> <strong>&lt; 5 milliseconds</strong>.<ul>
+<li><em>Why this target?</em> This is an aggressive but achievable goal for a regional in-memory store. It ensures that Redis is never the bottleneck in your application&#39;s request path.</li>
+</ul>
+</li>
+</ul>
+<h4 id="-how-to-achieve-and-maintain-the-slo-"><strong>How to Achieve and Maintain the SLO:</strong></h4>
+<ol>
+<li><p><strong>Network Proximity:</strong></p>
+<ul>
+<li><strong>Plan:</strong> Ensure near-zero network latency.</li>
+<li><strong>Implementation:</strong> Your Memorystore instance <strong>must</strong> be deployed in the <strong>same region</strong> and connected to the <strong>same VPC network</strong> as your Cloud Run services (via the Serverless VPC Connector).</li>
+</ul>
+</li>
+<li><p><strong>Use Efficient Redis Commands:</strong></p>
+<ul>
+<li><strong>Plan:</strong> Educate developers on Redis best practices. Redis is single-threaded, so one slow command can block all others.</li>
+<li><strong>Implementation:</strong><ul>
+<li><strong>NEVER</strong> use commands like <code>KEYS *</code> or <code>SMEMBERS</code> on sets with millions of members in a production, latency-sensitive path.</li>
+<li>Use <code>SCAN</code> for iterating over keys without blocking the server.</li>
+<li>Prefer commands that operate in constant <code>O(1)</code> or logarithmic <code>O(log N)</code> time for frequent operations.</li>
+</ul>
+</li>
+</ul>
+</li>
+</ol>
+<hr>
+<h3 id="3-performance-saturation-">3. Performance (Saturation)</h3>
+<p><strong>Goal:</strong> Ensure the instance has sufficient memory and CPU to handle the cache workload without evicting needed data or slowing down.</p>
+<h4 id="-slis-what-we-measure-"><strong>SLIs (What We Measure):</strong></h4>
+<ul>
+<li><strong>Memory Usage Ratio (<code>redis.googleapis.com/memory/usage_ratio</code>):</strong> The <strong>#1 saturation SLI</strong> for Redis. It&#39;s the percentage of total instance memory that is being used.</li>
+<li><strong>CPU Utilization:</strong> Tracks how busy the Redis engine is.</li>
+<li><strong>Evicted Keys (<code>redis.googleapis.com/keys/evicted</code>):</strong> A direct count of keys that were removed because the instance ran out of memory.</li>
+</ul>
+<h4 id="-slos-our-target-"><strong>SLOs (Our Target):</strong></h4>
+<ul>
+<li><strong>Memory Usage Ratio:</strong> Maintain peak below <strong>80%</strong>.</li>
+<li><strong>CPU Utilization:</strong> Maintain peak below <strong>60%</strong>.<ul>
+<li><em>Why these targets?</em> These provide a healthy buffer. Once memory usage exceeds 80%, you should have an alert to notify the SRE team that it&#39;s time to plan for scaling up the instance. A sustained high CPU indicates that you are either sending too many commands per second or using inefficient commands.</li>
+</ul>
+</li>
+</ul>
+<h4 id="-how-to-achieve-and-maintain-the-slo-"><strong>How to Achieve and Maintain the SLO:</strong></h4>
+<ol>
+<li><p><strong>Right-Sizing and Proactive Scaling:</strong></p>
+<ul>
+<li><strong>Plan:</strong> Provision an instance large enough for your working set and scale it up <em>before</em> you hit your SLO limit.</li>
+<li><strong>Implementation:</strong> Start with a reasonable instance size (e.g., 5GB). Monitor the memory usage ratio. If it trends towards 80%, scale the instance up to the next tier. This is a manual operation in the GCP Console and will trigger a failover, so it should be done during a planned maintenance window if possible.</li>
+</ul>
+</li>
+<li><p><strong>Set a Maxmemory Eviction Policy:</strong></p>
+<ul>
+<li><strong>Plan:</strong> Tell Redis what to do when it runs out of memory. For a cache, you want it to intelligently remove old data.</li>
+<li><strong>Implementation:</strong> Configure your instance with a <code>maxmemory-policy</code> of <strong><code>allkeys-lru</code></strong> (Least Recently Used). This ensures that when memory is full, Redis will evict the keys that haven&#39;t been accessed for the longest time, which is exactly the behavior you want for a cache.</li>
+</ul>
+</li>
+<li><p><strong>Set Time-To-Live (TTL) on All Keys:</strong></p>
+<ul>
+<li><strong>Plan:</strong> Practice good cache hygiene. Don&#39;t let data live in the cache forever.</li>
+<li><strong>Implementation:</strong> When your application writes a key to Redis (<code>SET mykey myvalue</code>), always use the <code>EX</code> option to give it an expiration time (e.g., <code>SET mykey myvalue EX 3600</code> for a 1-hour TTL). This prevents your cache from filling up with stale data and is a critical tool for managing memory.</li>
+</ul>
+</li>
+</ol>
+<hr>
+<h3 id="summary-for-memorystore-redis-sre">Summary for Memorystore (Redis) SRE</h3>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">Pillar</th>
+<th style="text-align:left">Key Strategy</th>
+<th style="text-align:left">GCP Services / Features Involved</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left"><strong>Availability</strong></td>
+<td style="text-align:left">Use HA for automatic failover and build app resilience.</td>
+<td style="text-align:left"><code>STANDARD_HA</code> Tier, Application Fallback Logic (try/catch), Robust Redis Client Libraries</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>Latency</strong></td>
+<td style="text-align:left">Minimize network distance and use efficient commands.</td>
+<td style="text-align:left">Private IP / VPC Connector (same region), Developer training on Redis commands (<code>KEYS</code>, <code>SCAN</code>)</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>Performance</strong></td>
+<td style="text-align:left">Proactively manage memory usage and practice good cache hygiene.</td>
+<td style="text-align:left">Cloud Monitoring Alerts on Memory Ratio, Vertical Scaling, <code>allkeys-lru</code> Eviction Policy, Setting TTLs</td>
+</tr>
+</tbody>
+</table>
+<p>This plan positions Memorystore as a powerful and reliable performance accelerator for your system. We have now covered Cloud Run, Cloud SQL, Pub/Sub, and Memorystore. Your SRE plan for the core infrastructure is very comprehensive.</p>
+
+  <div class="watermark">Vishal Patil</div>
+</body>
+</html>

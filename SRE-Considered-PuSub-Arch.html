@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SRE-Considered Architecture for Pub/Sub</title>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <script>
+      mermaid.initialize({ startOnLoad: true });
+  </script>
+  <link rel="stylesheet" href="styles.css">
+</head>
+
+<body class="markdown-body">
+
+  <h1>SRE-Considered Architecture for Pub/Sub</h1>
+  <div class="summary-block">
+    This page provides a comprehensive Site Reliability Engineering (SRE) plan for Google Cloud Pub/Sub, covering availability, latency, and performance strategies for handling asynchronous message processing with proper SLIs, SLOs, and implementation details for the messaging backbone.
+  </div>
+
+  <div class="mermaid" style="width: 175%;">
+flowchart TD
+    TITLE[SRE-Considered Architecture<br/>Google Cloud Pub/Sub]
+    
+    AVAIL_GOAL[Goal: Ensure every message is eventually<br/>processed successfully - at-least-once delivery]
+    AVAIL_SLI[SLIs: Oldest Unacknowledged Message Age<br/>Dead-Letter Queue Size<br/>Publish Success Rate]
+    AVAIL_SLO[SLO: Oldest Message Age < 1 hour<br/>DLQ Size = 0, Publish Availability 99.95%]
+    
+    AVAIL_STRATEGY1[Dead-Letter Queues DLQ<br/>Configure DLQ for every critical subscription<br/>Forward failed messages after 5 attempts]
+    AVAIL_STRATEGY2[Idempotent Subscribers<br/>Handle duplicate message delivery<br/>Use transaction IDs to prevent side effects]
+    AVAIL_STRATEGY3[Push Subscriptions with Cloud Run<br/>Automatic delivery and scaling<br/>HTTP POST to worker service]
+    
+    LAT_GOAL[Goal: Ensure messages move through system<br/>in timely manner - near-real-time processing]
+    LAT_SLI[SLIs: End-to-End Latency<br/>Publish Latency]
+    LAT_SLO[SLO: p99 End-to-End Latency < 10 seconds<br/>Fast message transit time]
+    
+    LAT_STRATEGY1[Efficient Subscriber Logic<br/>Keep worker services lean and fast<br/>Consider chained Pub/Sub pattern]
+    LAT_STRATEGY2[Adequate Subscriber Scaling<br/>High --max-instances for Cloud Run<br/>Scale out to meet message volume spikes]
+    LAT_STRATEGY3[Publisher Batching<br/>Use official client libraries<br/>Automatic message batching]
+    
+    PERF_GOAL[Goal: Handle required message volume<br/>without backlog or message loss]
+    PERF_SLI[SLIs: Publish Throughput<br/>Acknowledgement Ack Throughput]
+    PERF_SLO[SLO: Ack Throughput ≥ Publish Throughput<br/>Over 5-minute rolling window]
+    
+    PERF_STRATEGY1[Autoscaling Subscribers<br/>Cloud Run auto-scales based on message backlog<br/>Increase capacity to match publish rate]
+    PERF_STRATEGY2[Subscriber Flow Control<br/>Tune Push subscription settings<br/>Control outstanding message concurrency]
+    PERF_STRATEGY3[Sufficient Quotas<br/>Monitor Pub/Sub quotas<br/>Request increases before hitting limits]
+    
+    MONITORING[Cloud Monitoring<br/>DLQ alerts, Message age alerts]
+    WORKER[Cloud Run Worker Service<br/>Push subscription endpoint]
+    DLQ_TOPIC[Dead-Letter Topic<br/>Failed message storage]
+    
+    TITLE --> AVAIL_GOAL
+    TITLE --> LAT_GOAL
+    TITLE --> PERF_GOAL
+    
+    AVAIL_GOAL --> AVAIL_SLI
+    AVAIL_SLI --> AVAIL_SLO
+    AVAIL_SLO --> AVAIL_STRATEGY1
+    AVAIL_SLO --> AVAIL_STRATEGY2
+    AVAIL_SLO --> AVAIL_STRATEGY3
+    
+    LAT_GOAL --> LAT_SLI
+    LAT_SLI --> LAT_SLO
+    LAT_SLO --> LAT_STRATEGY1
+    LAT_SLO --> LAT_STRATEGY2
+    LAT_SLO --> LAT_STRATEGY3
+    
+    PERF_GOAL --> PERF_SLI
+    PERF_SLI --> PERF_SLO
+    PERF_SLO --> PERF_STRATEGY1
+    PERF_SLO --> PERF_STRATEGY2
+    PERF_SLO --> PERF_STRATEGY3
+    
+    AVAIL_STRATEGY1 --> DLQ_TOPIC
+    AVAIL_STRATEGY1 --> MONITORING
+    AVAIL_STRATEGY3 --> WORKER
+    LAT_STRATEGY2 --> WORKER
+    PERF_STRATEGY1 --> WORKER
+    
+    classDef titleNode fill:#e3f2fd,stroke:#1976d2,stroke-width:3px
+    classDef goalNode fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
+    classDef sliNode fill:#e8f5e8,stroke:#388e3c,stroke-width:2px
+    classDef sloNode fill:#fff3e0,stroke:#f57c00,stroke-width:2px
+    classDef strategyNode fill:#fce4ec,stroke:#c2185b,stroke-width:2px
+    classDef implNode fill:#e0f2f1,stroke:#00695c,stroke-width:2px
+    
+    class TITLE titleNode
+    class AVAIL_GOAL,LAT_GOAL,PERF_GOAL goalNode
+    class AVAIL_SLI,LAT_SLI,PERF_SLI sliNode
+    class AVAIL_SLO,LAT_SLO,PERF_SLO sloNode
+    class AVAIL_STRATEGY1,AVAIL_STRATEGY2,AVAIL_STRATEGY3,LAT_STRATEGY1,LAT_STRATEGY2,LAT_STRATEGY3,PERF_STRATEGY1,PERF_STRATEGY2,PERF_STRATEGY3 strategyNode
+    class MONITORING,WORKER,DLQ_TOPIC implNode
+</div>
+
+  <p>The next logical piece of your architecture is the asynchronous backbone: <strong>Google Cloud Pub/Sub</strong>.</p>
+<p>Pub/Sub is the glue that decouples your services. It allows your front-facing APIs to be fast and responsive by offloading slow or heavy work to background processors. From an SRE perspective, its role is to be a highly reliable &quot;shock absorber,&quot; ensuring that message delivery is guaranteed even if a downstream service is slow, failing, or being redeployed.</p>
+<p>Because Pub/Sub is a global, fully-managed serverless offering, our SRE focus shifts away from <em>instance health</em> (like with Cloud SQL) and towards the health of the <em>message flow</em> itself.</p>
+<hr>
+<h3 id="sre-plan-google-cloud-pub-sub">SRE Plan: Google Cloud Pub/Sub</h3>
+<p><strong>Goal:</strong> Guarantee that messages published by one service are reliably, securely, and promptly delivered to the subscribing service(s) for processing, without losing data or creating an unmanageable backlog.</p>
+<hr>
+<h3 id="1-availability-reliability-">1. Availability (Reliability)</h3>
+<p><strong>Goal:</strong> Ensure every message intended for processing is eventually processed successfully. The core tenet is &quot;at-least-once delivery.&quot;</p>
+<h4 id="-slis-what-we-measure-"><strong>SLIs (What We Measure):</strong></h4>
+<ul>
+<li><strong>Oldest Unacknowledged Message Age:</strong> This is your <strong>most important subscriber health SLI</strong>. It measures the age of the oldest message that has been delivered but not yet acknowledged (ACK&#39;d) by your subscriber. A consistently growing value means your subscribers are failing or cannot keep up with the workload.</li>
+<li><strong>Dead-Letter Queue Size (<code>subscription/dead_letter_message_count</code>):</strong> The number of messages in the Dead-Letter Queue (DLQ). A non-zero value indicates that messages are failing processing repeatedly and require manual investigation.</li>
+<li><strong>Publish Success Rate:</strong> The percentage of publish requests from your Cloud Run services that are successfully accepted by the Pub/Sub service.</li>
+</ul>
+<h4 id="-slos-our-target-"><strong>SLOs (Our Target):</strong></h4>
+<ul>
+<li><strong>Oldest Unacknowledged Message Age:</strong> <strong>&lt; 1 hour</strong>. This is a business-level decision. It means you are promising that no task will be stuck in a processing queue for more than an hour without an alert being triggered for investigation. For more critical tasks (e.g., password reset emails), you might set this SLO to <code>&lt; 5 minutes</code>.</li>
+<li><strong>Dead-Lettered Messages:</strong> The number of messages in the DLQ should be <strong>0</strong>. You should have an alert that fires if this value is <code>&gt; 0</code>.</li>
+<li><strong>Publish Availability:</strong> <strong>99.95%</strong>. Your applications should almost never fail to publish a message.</li>
+</ul>
+<h4 id="-how-to-achieve-and-maintain-the-slo-"><strong>How to Achieve and Maintain the SLO:</strong></h4>
+<ol>
+<li><p><strong>Dead-Letter Queues (DLQ) are Mandatory:</strong></p>
+<ul>
+<li><strong>Plan:</strong> Every critical subscription must have a DLQ configured. This is your safety net. It prevents a single malformed or problematic message (a &quot;poison pill&quot;) from halting all processing for a subscription by repeatedly failing and being redelivered.</li>
+<li><strong>Implementation:</strong> Create a separate &quot;dead-letter&quot; topic. For your main subscription, configure its dead-lettering policy to forward any message to this topic after a certain number of failed delivery attempts (e.g., 5). Set up a Cloud Monitoring alert on the <code>dead_letter_message_count</code> of the main subscription.</li>
+</ul>
+</li>
+<li><p><strong>Idempotent Subscribers (Non-Negotiable):</strong></p>
+<ul>
+<li><strong>Plan:</strong> Your subscriber logic must be able to handle the same message being delivered more than once without causing incorrect side effects. Pub/Sub guarantees <em>at-least-once</em> delivery, which means duplicates are rare but possible during network events or retries.</li>
+<li><strong>Implementation:</strong> A common pattern is to include a unique transaction ID in the message payload. When the subscriber receives a message, it first checks a database table or a Redis key to see if that transaction ID has already been processed. If it has, the subscriber simply acknowledges the message and stops. If not, it processes the message and then records the transaction ID before acknowledging.</li>
+</ul>
+</li>
+<li><p><strong>Use Push Subscriptions with Cloud Run:</strong></p>
+<ul>
+<li><strong>Plan:</strong> Let Pub/Sub and Cloud Run handle the delivery mechanics and scaling automatically.</li>
+<li><strong>Implementation:</strong> Configure your subscription as a &quot;Push&quot; subscription. Set the push endpoint to the URL of your worker Cloud Run service. Pub/Sub will make an HTTP POST request to your service for each message. If your service returns a success code (<code>200</code>, <code>201</code>, <code>204</code>), Pub/Sub considers the message ACK&#39;d. If it returns an error code (<code>5xx</code>) or times out, Pub/Sub will automatically retry delivery with exponential backoff.</li>
+</ul>
+</li>
+</ol>
+<hr>
+<h3 id="2-latency">2. Latency</h3>
+<p><strong>Goal:</strong> Ensure that messages move through the system in a timely manner, enabling near-real-time asynchronous processing.</p>
+<h4 id="-slis-what-we-measure-"><strong>SLIs (What We Measure):</strong></h4>
+<ul>
+<li><strong>End-to-End Latency:</strong> The total time from a successful <code>publish()</code> call to a successful acknowledgement from the subscriber. This can be measured by embedding a timestamp in the message payload.</li>
+<li><strong>Publish Latency:</strong> The time it takes for the <code>publish()</code> API call itself to complete.</li>
+</ul>
+<h4 id="-slos-our-target-"><strong>SLOs (Our Target):</strong></h4>
+<ul>
+<li><strong>p99 End-to-End Latency:</strong> <strong>&lt; 10 seconds</strong>.<ul>
+<li><em>Why this target?</em> Pub/Sub itself is extremely fast (tens to hundreds of milliseconds). The vast majority of end-to-end latency will be the time the message waits to be processed plus the subscriber&#39;s processing time. This SLO ensures the entire asynchronous system feels responsive.</li>
+</ul>
+</li>
+</ul>
+<h4 id="-how-to-achieve-and-maintain-the-slo-"><strong>How to Achieve and Maintain the SLO:</strong></h4>
+<ol>
+<li><strong>Efficient Subscriber Logic:</strong> Keep your worker services lean. A subscriber should do its work quickly and acknowledge the message. If a task involves multiple steps, consider a chained Pub/Sub pattern (Subscriber A does step 1, then publishes a new message for Subscriber B to do step 2).</li>
+<li><strong>Adequate Subscriber Scaling:</strong> The primary cause of high latency is backlog. Ensure your subscriber Cloud Run service has a sufficiently high <code>--max-instances</code> setting so it can scale out to meet message volume spikes, keeping the queue short and latency low.</li>
+<li><strong>Publisher Batching:</strong> The official Google Cloud client libraries automatically perform batching—collecting multiple small messages into a single publish request. This significantly improves efficiency and reduces latency overhead. Do not disable this feature.</li>
+</ol>
+<hr>
+<h3 id="3-performance-throughput-">3. Performance (Throughput)</h3>
+<p><strong>Goal:</strong> Ensure the system can handle the required message volume generated by 100k+ users without creating a backlog or dropping messages.</p>
+<h4 id="-slis-what-we-measure-"><strong>SLIs (What We Measure):</strong></h4>
+<ul>
+<li><strong>Publish Throughput:</strong> The rate of messages/second being published to a topic.</li>
+<li><strong>Acknowledgement (Ack) Throughput:</strong> The rate of messages/second being successfully acknowledged by a subscription.</li>
+</ul>
+<h4 id="-slos-our-target-"><strong>SLOs (Our Target):</strong></h4>
+<ul>
+<li><strong>Throughput Parity:</strong> Over a rolling 5-minute window, <strong>Ack Throughput ≥ Publish Throughput</strong>.<ul>
+<li><em>Why this target?</em> This is the mathematical definition of a healthy, stable queue. If you are acknowledging messages as fast as you are publishing them, no backlog is forming. If Ack Throughput falls below Publish Throughput, your &quot;Oldest Unacknowledged Message Age&quot; SLI will start to increase.</li>
+</ul>
+</li>
+</ul>
+<h4 id="-how-to-achieve-and-maintain-the-slo-"><strong>How to Achieve and Maintain the SLO:</strong></h4>
+<ol>
+<li><strong>Autoscaling Subscribers:</strong> This is the key benefit of your architecture. As publish throughput increases, the message backlog will start to build slightly. Pub/Sub will try to push these messages to your Cloud Run worker. Cloud Run will see the increased request load and automatically scale out by creating more container instances, increasing your total acknowledgement capacity until it matches the publish rate.</li>
+<li><strong>Subscriber Flow Control:</strong> For very high-throughput scenarios, you can tune the flow control settings in <code>Push</code> subscriptions. This controls how many outstanding messages Pub/Sub will push to your service at once, allowing you to fine-tune the concurrency.</li>
+<li><strong>Sufficient Quotas:</strong> While Pub/Sub&#39;s default quotas are extremely generous, for a massive system, it&#39;s a good SRE practice to be aware of them and request an increase from Google Cloud support <em>before</em> you hit a limit.</li>
+</ol>
+<hr>
+<h3 id="summary-for-pub-sub-sre">Summary for Pub/Sub SRE</h3>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">Pillar</th>
+<th style="text-align:left">Key Strategy</th>
+<th style="text-align:left">GCP Services / Features Involved</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left"><strong>Availability</strong></td>
+<td style="text-align:left">Prevent message loss and processing halts.</td>
+<td style="text-align:left">Dead-Letter Queues (DLQ), Idempotent Subscriber Logic, Cloud Monitoring Alerts</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>Latency</strong></td>
+<td style="text-align:left">Minimize message transit time.</td>
+<td style="text-align:left">Efficient Subscriber Code, Autoscaling Subscribers, Publisher Batching</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>Performance</strong></td>
+<td style="text-align:left">Ensure processing capacity matches message volume.</td>
+<td style="text-align:left">Cloud Run Autoscaling (<code>--max-instances</code>), Push Subscriptions</td>
+</tr>
+</tbody>
+</table>
+<p>With this plan, your Pub/Sub layer becomes a robust, self-healing, and scalable backbone for your entire application. Now, where would you like to focus next? <strong>Memorystore (Redis)</strong> would be a great choice.</p>
+
+  <div class="watermark">Vishal Patil</div>
+</body>
+</html>

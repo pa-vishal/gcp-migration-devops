@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cloud Run Zero-Loss Deployment Guide</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <script>
+      mermaid.initialize({ startOnLoad: true });
+  </script>
+</head>
+
+<body class="markdown-body">
+
+  <h1>Cloud Run Zero-Loss Deployment Guide</h1>
+  <div class="summary-block">
+    This comprehensive guide covers zero-loss and minimal-downtime deployment strategies for Google Cloud Run, including blue/green deployments, canary releases, traffic management, and best practices for handling 100,000+ concurrent users without service interruption.
+  </div>
+
+  <div class="mermaid" >
+  flowchart LR
+    TITLE[Cloud Run Zero-Loss Deployment<br/>Architecture & Strategy]
+    
+    CORE_CONCEPTS[Core Concepts<br/>Zero Downtime + Zero Loss]
+    ZERO_DT[Zero Downtime<br/>No service unavailability]
+    ZERO_LOSS[Zero Loss<br/>No dropped in-flight requests]
+    MIN_DT[Minimal Downtime<br/>Imperceptible to users]
+    
+    CLOUDRUN_FEATURES[Cloud Run Native Features]
+    REVISIONS[Immutable Revisions<br/>Snapshot of code + config]
+    TRAFFIC_MGMT[Traffic Management<br/>Blue/Green + Canary]
+    GRACEFUL_SHUT[Graceful Shutdown<br/>SIGTERM handling]
+    HEALTH_CHECKS[Health Checks<br/>Startup + Liveness probes]
+    PREWARM[Pre-warmed Instances<br/>--min-instances]
+    
+    DEPLOYMENT_STRATEGIES[Deployment Strategies]
+    BLUE_GREEN[Blue/Green Deployment<br/>Instant traffic switch]
+    CANARY[Canary Deployment<br/>Gradual rollout 5%→100%]
+    ROLLBACK[Instant Rollback<br/>Traffic reversion]
+    
+    IMPLEMENTATION[Implementation Steps]
+    STEP1[Step 1: Design for Cloud Run<br/>Stateless + PORT + SIGTERM]
+    STEP2[Step 2: Containerize<br/>Minimal base image]
+    STEP3[Step 3: Build & Push<br/>Artifact Registry]
+    STEP4[Step 4: Initial Deploy<br/>--no-traffic flag]
+    STEP5[Step 5: Health Checks<br/>/healthz endpoint]
+    STEP6[Step 6: Traffic Management<br/>Blue/Green or Canary]
+    STEP7[Step 7: Rollback Plan<br/>Instant reversion]
+    STEP8[Step 8: Min Instances<br/>Cold start prevention]
+    
+    KEY_CONSIDERATIONS[Key Considerations]
+    DB_MIGRATIONS[Database Migrations<br/>Backward compatibility]
+    SESSION_MGMT[Session Management<br/>Externalized sessions]
+    EXT_DEPS[External Dependencies<br/>Robust APIs + queues]
+    MONITORING[Monitoring & Alerting<br/>Cloud Monitoring]
+    LOGGING[Centralized Logging<br/>Cloud Logging]
+    CI_CD[CI/CD Pipeline<br/>Automated deployments]
+    TESTING[Thorough Testing<br/>Staging environment]
+    
+    TITLE --> CORE_CONCEPTS
+    CORE_CONCEPTS --> ZERO_DT
+    CORE_CONCEPTS --> ZERO_LOSS
+    CORE_CONCEPTS --> MIN_DT
+    
+    TITLE --> CLOUDRUN_FEATURES
+    CLOUDRUN_FEATURES --> REVISIONS
+    CLOUDRUN_FEATURES --> TRAFFIC_MGMT
+    CLOUDRUN_FEATURES --> GRACEFUL_SHUT
+    CLOUDRUN_FEATURES --> HEALTH_CHECKS
+    CLOUDRUN_FEATURES --> PREWARM
+    
+    TITLE --> DEPLOYMENT_STRATEGIES
+    DEPLOYMENT_STRATEGIES --> BLUE_GREEN
+    DEPLOYMENT_STRATEGIES --> CANARY
+    DEPLOYMENT_STRATEGIES --> ROLLBACK
+    
+    TITLE --> IMPLEMENTATION
+    IMPLEMENTATION --> STEP1
+    IMPLEMENTATION --> STEP2
+    IMPLEMENTATION --> STEP3
+    IMPLEMENTATION --> STEP4
+    IMPLEMENTATION --> STEP5
+    IMPLEMENTATION --> STEP6
+    IMPLEMENTATION --> STEP7
+    IMPLEMENTATION --> STEP8
+    
+    TITLE --> KEY_CONSIDERATIONS
+    KEY_CONSIDERATIONS --> DB_MIGRATIONS
+    KEY_CONSIDERATIONS --> SESSION_MGMT
+    KEY_CONSIDERATIONS --> EXT_DEPS
+    KEY_CONSIDERATIONS --> MONITORING
+    KEY_CONSIDERATIONS --> LOGGING
+    KEY_CONSIDERATIONS --> CI_CD
+    KEY_CONSIDERATIONS --> TESTING
+    
+    classDef titleNode fill:#e3f2fd,stroke:#1976d2,stroke-width:3px
+    classDef conceptNode fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
+    classDef featureNode fill:#e8f5e8,stroke:#388e3c,stroke-width:2px
+    classDef strategyNode fill:#fff3e0,stroke:#f57c00,stroke-width:2px
+    classDef stepNode fill:#fce4ec,stroke:#c2185b,stroke-width:2px
+    classDef considerationNode fill:#e0f2f1,stroke:#00695c,stroke-width:2px
+    
+    class TITLE titleNode
+    class CORE_CONCEPTS,ZERO_DT,ZERO_LOSS,MIN_DT conceptNode
+    class CLOUDRUN_FEATURES,REVISIONS,TRAFFIC_MGMT,GRACEFUL_SHUT,HEALTH_CHECKS,PREWARM featureNode
+    class DEPLOYMENT_STRATEGIES,BLUE_GREEN,CANARY,ROLLBACK strategyNode
+    class IMPLEMENTATION,STEP1,STEP2,STEP3,STEP4,STEP5,STEP6,STEP7,STEP8 stepNode
+    class KEY_CONSIDERATIONS,DB_MIGRATIONS,SESSION_MGMT,EXT_DEPS,MONITORING,LOGGING,CI_CD,TESTING considerationNode
+</div>
+
+  <p>Zero-loss and minimal-downtime deployment are critical goals for modern web services, ensuring that users experience no interruptions or data loss during application updates. Google Cloud Run, as a fully managed serverless platform, is designed with these principles in mind, offering built-in features that simplify achieving these objectives.</p>
+
+  <h3 id="core-concepts-zero-loss-and-minimal-downtime">Core Concepts: Zero-Loss and Minimal-Downtime</h3>
+  <ul>
+    <li><strong>Zero Downtime:</strong> This means that at no point during the deployment process is the service unavailable to users. Requests continue to be served without interruption.</li>
+    <li><strong>Minimal Downtime:</strong> Aims for the shortest possible period of unavailability, ideally seconds or milliseconds, often imperceptible to the user.</li>
+    <li><strong>Zero-Loss:</strong> Ensures that no in-flight requests are dropped or fail due to the deployment. All requests initiated before the deployment completes are either handled by the old version or gracefully transferred to the new version.</li>
+  </ul>
+
+  <h3 id="how-cloud-run-achieves-zero-loss-and-minimal-downtime">How Cloud Run Achieves Zero-Loss and Minimal-Downtime</h3>
+  <p>Cloud Run inherently supports these goals through its <strong>revision-based deployment model</strong> and sophisticated <strong>traffic management</strong> capabilities.</p>
+
+  <div class="mermaid" style="width: 100%;">
+flowchart LR
+    subgraph "Cloud Run Zero-Loss Architecture"
+        REVISION1[Revision 1<br/>v1.0.0<br/>100% Traffic]
+        REVISION2[Revision 2<br/>v1.1.0<br/>0% Traffic]
+        
+        TRAFFIC[Incoming Traffic]
+        LB[Load Balancer]
+        
+        TRAFFIC --> LB
+        LB --> REVISION1
+        
+        REVISION1 -.->|Graceful Shutdown| REVISION2
+        REVISION2 -.->|Health Check Pass| REVISION2
+    end
+    
+    subgraph "Deployment Process"
+        DEPLOY[Deploy New Image]
+        HEALTH[Health Check]
+        TRAFFIC_SHIFT[Traffic Shift]
+        DRAIN[Drain Old Revision]
+        
+        DEPLOY --> HEALTH
+        HEALTH --> TRAFFIC_SHIFT
+        TRAFFIC_SHIFT --> DRAIN
+    end
+    
+    classDef revisionNode fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
+    classDef processNode fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
+    classDef trafficNode fill:#e8f5e8,stroke:#388e3c,stroke-width:2px
+    
+    class REVISION1,REVISION2 revisionNode
+    class DEPLOY,HEALTH,TRAFFIC_SHIFT,DRAIN processNode
+    class TRAFFIC,LB trafficNode
+</div>
+
+  <ol>
+    <li><p><strong>Revisions as Immutable Snapshots:</strong></p>
+      <ul>
+        <li>Every time you deploy a new version of your container image to a Cloud Run service, Cloud Run creates a new <strong>revision</strong>.</li>
+        <li>A revision is an immutable snapshot of your service's code, configuration (environment variables, memory, CPU, concurrency, health checks), and container image.</li>
+        <li>Old revisions are kept running until traffic is explicitly shifted away from them. They are not immediately shut down.</li>
+      </ul>
+    </li>
+    <li><p><strong>Traffic Management (Blue/Green & Canary Deployments):</strong></p>
+      <ul>
+        <li>Cloud Run's traffic management allows you to control exactly how incoming requests are routed to different revisions of your service. This is the foundation for blue/green and canary deployments.</li>
+        <li><strong>Blue/Green Deployment:</strong> You deploy the new revision (Green) alongside the currently serving revision (Blue). Once the Green revision is healthy and ready, you instantly switch 100% of the traffic to it. The old Blue revision can then be kept as a quick rollback option or shut down.</li>
+        <li><strong>Canary Deployment (Gradual Rollout):</strong> You deploy the new revision, but initially, only a small percentage of traffic (e.g., 5-10%) is routed to it. You monitor its performance and error rates. If stable, you gradually increase the traffic to the new revision (e.g., 20%, 50%, 100%), while simultaneously decreasing traffic to the old one. If issues arise, you can immediately revert traffic back to the stable old revision.</li>
+      </ul>
+    </li>
+    <li><p><strong>Graceful Shutdown:</strong></p>
+      <ul>
+        <li>When an instance of an old revision is no longer receiving traffic or is being scaled down, Cloud Run sends a <code>SIGTERM</code> signal to the container.</li>
+        <li>Your application code can (and should) listen for this <code>SIGTERM</code> signal. This allows your application to perform any necessary cleanup, such as flushing logs, closing database connections, or completing in-flight requests, before the container is forcibly shut down.</li>
+        <li>Cloud Run provides a configurable <strong>request timeout</strong> and a <strong>container instance shutdown period</strong> (default 10 seconds after <code>SIGTERM</code> is sent) to allow active requests to complete gracefully.</li>
+      </ul>
+    </li>
+    <li><p><strong>Health Checks:</strong></p>
+      <ul>
+        <li>Cloud Run uses <strong>startup probes</strong> and <strong>liveness probes</strong> to determine the health and readiness of your container instances.</li>
+        <li><strong>Startup Probe:</strong> Ensures that a new container instance has successfully started and is ready to receive traffic before Cloud Run routes any requests to it. This prevents traffic from being sent to an unready application.</li>
+        <li><strong>Liveness Probe:</strong> Periodically checks if a running container instance is still healthy. If a liveness probe fails, Cloud Run will restart the unhealthy instance, ensuring only healthy instances serve traffic.</li>
+        <li>These health checks are crucial for ensuring that only fully operational instances receive traffic during a deployment.</li>
+      </ul>
+    </li>
+    <li><p><strong>Pre-warmed Instances (Minimum Instances):</strong></p>
+      <ul>
+        <li>By default, Cloud Run scales to zero instances when there's no traffic. The first request after scaling to zero will incur a "cold start" delay.</li>
+        <li>To minimize cold starts and ensure immediate responsiveness, you can configure a <strong>minimum number of instances</strong> to keep warm and ready. These instances are kept running even when idle, preventing cold start latency for the first few requests to a new revision.</li>
+      </ul>
+    </li>
+  </ol>
+
+  <h3 id="implementation-steps-for-zero-loss-and-minimal-downtime-deployment-on-cloud-run">Implementation Steps for Zero-Loss and Minimal-Downtime Deployment on Cloud Run</h3>
+  <p>Here's a step-by-step guide to implementing zero-loss and minimal-downtime deployments:</p>
+
+  <div class="mermaid" style="width: 100%;">
+flowchart TD
+    subgraph "Deployment Pipeline"
+        STEP1[Step 1<br/>Design for Cloud Run<br/>Stateless + PORT + SIGTERM]
+        STEP2[Step 2<br/>Containerize<br/>Minimal base image]
+        STEP3[Step 3<br/>Build & Push<br/>Artifact Registry]
+        STEP4[Step 4<br/>Initial Deploy<br/>--no-traffic]
+        STEP5[Step 5<br/>Health Checks<br/>/healthz endpoint]
+        STEP6[Step 6<br/>Traffic Management<br/>Blue/Green or Canary]
+        STEP7[Step 7<br/>Rollback Plan<br/>Instant reversion]
+        STEP8[Step 8<br/>Min Instances<br/>Cold start prevention]
+        
+        STEP1 --> STEP2
+        STEP2 --> STEP3
+        STEP3 --> STEP4
+        STEP4 --> STEP5
+        STEP5 --> STEP6
+        STEP6 --> STEP7
+        STEP7 --> STEP8
+    end
+    
+    subgraph "Traffic Management Options"
+        BLUE_GREEN[Blue/Green<br/>Instant Switch]
+        CANARY[Canary<br/>Gradual Rollout]
+        
+        BLUE_GREEN -.->|100% Traffic| CANARY
+        CANARY -.->|5% → 20% → 50% → 100%| BLUE_GREEN
+    end
+    
+    classDef stepNode fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
+    classDef strategyNode fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
+    
+    class STEP1,STEP2,STEP3,STEP4,STEP5,STEP6,STEP7,STEP8 stepNode
+    class BLUE_GREEN,CANARY strategyNode
+</div>
+
+  <h4 id="step-1-design-your-application-for-cloud-run">Step 1: Design Your Application for Cloud Run</h4>
+  <ul>
+    <li><p><strong>Statelessness:</strong> Your application must be stateless. Any persistent data should be stored in external services (Cloud SQL, Firestore, Cloud Storage, Memorystore, etc.).</p></li>
+    <li><p><strong>Listen on <code>PORT</code>:</strong> Your application must listen for HTTP requests on the port specified by the <code>PORT</code> environment variable (typically 8080).</p></li>
+    <li><p><strong>Graceful Shutdown Handling:</strong> Implement a <code>SIGTERM</code> handler in your application code.</p>
+      <p><strong>Example (Node.js/Express):</strong></p>
+      <pre><code class="lang-javascript">const express = <span class="hljs-built_in">require</span>(<span class="hljs-string">'express'</span>);
+const app = express();
+const port = process.env.PORT || <span class="hljs-number">8080</span>;
+
+app.get(<span class="hljs-string">'/'</span>, <span class="hljs-function"><span class="hljs-params">(req, res)</span> =&gt;</span> {
+  res.send(<span class="hljs-string">'Hello from Cloud Run!'</span>);
+});
+
+const server = app.listen(port, <span class="hljs-function"><span class="hljs-params">()</span> =&gt;</span> {
+  <span class="hljs-built_in">console</span>.log(`<span class="javascript">App listening on port ${port}</span>`);
+});
+
+<span class="hljs-regexp">//</span> Graceful shutdown handler
+process.<span class="hljs-literal">on</span>(<span class="hljs-string">'SIGTERM'</span>, <span class="hljs-function"><span class="hljs-params">()</span> =&gt;</span> {
+  <span class="hljs-built_in">console</span>.log(<span class="hljs-string">'SIGTERM signal received: closing HTTP server'</span>);
+  server.close(<span class="hljs-function"><span class="hljs-params">()</span> =&gt;</span> {
+    <span class="hljs-built_in">console</span>.log(<span class="hljs-string">'HTTP server closed'</span>);
+    process.exit(<span class="hljs-number">0</span>);
+  });
+});
+</code></pre>
+    </li>
+  </ul>
+
+  <h4 id="step-2-containerize-your-application">Step 2: Containerize Your Application</h4>
+  <ul>
+    <li><p>Create a <code>Dockerfile</code> for your application. Use a minimal base image (e.g., <code>distroless</code>, Alpine-based) to reduce image size and startup time.</p>
+      <p><strong>Example <code>Dockerfile</code>:</strong></p>
+      <pre><code class="lang-dockerfile"><span class="hljs-comment"># Use a minimal Node.js image</span>
+<span class="hljs-keyword">FROM</span> node:<span class="hljs-number">20</span>-slim
+
+<span class="hljs-comment"># Set working directory</span>
+<span class="hljs-keyword">WORKDIR</span><span class="bash"> /app
+</span><span class="hljs-comment"># Copy package.json and package-lock.json first to leverage Docker cache</span>
+<span class="hljs-keyword">COPY</span><span class="bash"> package*.json ./
+</span><span class="hljs-comment"># Install dependencies</span>
+<span class="hljs-keyword">RUN</span><span class="bash"> npm install --production
+</span><span class="hljs-comment"># Copy application source code</span>
+<span class="hljs-keyword">COPY</span><span class="bash"> . .
+</span><span class="hljs-comment"># Expose the port your app listens on</span>
+<span class="hljs-keyword">EXPOSE</span> <span class="hljs-number">8080</span>
+
+<span class="hljs-comment"># Command to run the application</span>
+<span class="hljs-keyword">CMD</span><span class="bash"> [<span class="hljs-string">"node"</span>, <span class="hljs-string">"server.js"</span>]</span>
+</code></pre>
+    </li>
+  </ul>
+
+  <h4 id="step-3-build-and-push-your-container-image">Step 3: Build and Push Your Container Image</h4>
+  <ul>
+    <li><p>Use Cloud Build or Docker locally to build your image and push it to Artifact Registry (or Container Registry).</p>
+      <pre><code class="lang-bash"><span class="hljs-comment"># Set your project ID and region</span>
+PROJECT_ID=<span class="hljs-string">"your-gcp-project-id"</span>
+REGION=<span class="hljs-string">"us-central1"</span>
+SERVICE_NAME=<span class="hljs-string">"my-zero-downtime-app"</span>
+IMAGE_NAME=<span class="hljs-string">"<span class="hljs-subst">${REGION}</span>-docker.pkg.dev/<span class="hljs-subst">${PROJECT_ID}</span>/<span class="hljs-subst">${SERVICE_NAME}</span>/<span class="hljs-subst">${SERVICE_NAME}</span>:latest"</span>
+
+<span class="hljs-comment"># Build the Docker image</span>
+docker build -t ${IMAGE_NAME} .
+
+<span class="hljs-comment"># Push the image to Artifact Registry</span>
+docker <span class="hljs-keyword">push</span> ${IMAGE_NAME}
+</code></pre>
+    </li>
+  </ul>
+
+  <h4 id="step-4-initial-deployment-to-cloud-run">Step 4: Initial Deployment to Cloud Run</h4>
+  <ul>
+    <li><p>Deploy your service for the first time. For zero-downtime, it's best practice to deploy new revisions with <code>--no-traffic</code> initially, especially if you plan to do manual traffic splitting or canary releases.</p>
+      <pre><code class="lang-bash">gcloud run deploy ${SERVICE_NAME} \
+  -<span class="ruby">-image ${IMAGE_NAME} \
+</span>  -<span class="ruby">-platform managed \
+</span>  -<span class="ruby">-region ${REGION} \
+</span>  -<span class="ruby">-allow-unauthenticated \
+</span>  -<span class="ruby">-no-traffic <span class="hljs-comment"># Deploy without immediately serving traffic</span></span>
+</code></pre>
+      <ul>
+        <li>This creates the service and its first revision, but no traffic is routed to it yet.</li>
+      </ul>
+    </li>
+  </ul>
+
+  <h4 id="step-5-configure-health-checks-crucial-for-readiness-">Step 5: Configure Health Checks (Crucial for Readiness)</h4>
+  <ul>
+    <li><p>Configure startup and liveness probes for your service. This ensures Cloud Run only routes traffic to instances that are truly ready and healthy.</p>
+      <pre><code class="lang-bash">gcloud run services update ${SERVICE_NAME} \
+  -<span class="ruby">-region ${REGION} \
+</span>  -<span class="ruby">-set-startup-probe=<span class="hljs-regexp">/healthz:8080:10s:3:1s:10s \
+</span></span>  -<span class="ruby"><span class="hljs-regexp">-set-liveness-probe=/healthz</span><span class="hljs-symbol">:</span><span class="hljs-number">8080</span><span class="hljs-symbol">:</span><span class="hljs-number">10</span><span class="hljs-symbol">s:</span><span class="hljs-number">3</span><span class="hljs-symbol">:</span><span class="hljs-number">1</span><span class="hljs-symbol">s:</span><span class="hljs-number">10</span>s</span>
+</code></pre>
+      <ul>
+        <li><strong><code>/healthz</code></strong>: Your application should expose an HTTP endpoint (e.g., <code>/healthz</code>) that returns a 200 OK status when it's fully initialized and ready to serve requests.</li>
+        <li><strong><code>:8080</code></strong>: The port your container listens on.</li>
+        <li><strong><code>10s</code> (Initial Delay):</strong> Time to wait before the first probe.</li>
+        <li><strong><code>3</code> (Failure Threshold):</strong> Number of consecutive failures before the instance is considered unhealthy.</li>
+        <li><strong><code>1s</code> (Period):</strong> How often to perform the probe.</li>
+        <li><strong><code>10s</code> (Timeout):</strong> How long to wait for a probe response before considering it a failure.</li>
+      </ul>
+    </li>
+  </ul>
+
+  <h4 id="step-6-deploy-new-revisions-with-traffic-management">Step 6: Deploy New Revisions with Traffic Management</h4>
+  <p>This is where the zero-downtime magic happens.</p>
+
+  <div class="mermaid" style="width: 100%;">
+flowchart TD
+    subgraph "Blue/Green Deployment"
+        BG1[Deploy New Revision<br/>--no-traffic]
+        BG2[Monitor Health<br/>Startup + Liveness]
+        BG3[Instant Traffic Switch<br/>--to-latest]
+        BG4[Drain Old Revision<br/>Graceful shutdown]
+        
+        BG1 --> BG2
+        BG2 --> BG3
+        BG3 --> BG4
+    end
+    
+    subgraph "Canary Deployment"
+        C1[Deploy New Revision<br/>--no-traffic]
+        C2[Route 5% Traffic<br/>--to-revisions]
+        C3[Monitor Performance<br/>Error rates + Latency]
+        C4[Gradual Increase<br/>5% → 20% → 50% → 100%]
+        C5[Full Rollout<br/>--to-latest]
+        
+        C1 --> C2
+        C2 --> C3
+        C3 --> C4
+        C4 --> C5
+    end
+    
+    classDef bgNode fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
+    classDef canaryNode fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
+    
+    class BG1,BG2,BG3,BG4 bgNode
+    class C1,C2,C3,C4,C5 canaryNode
+</div>
+
+  <p><strong>Option A: Blue/Green Deployment (Instant Switch)</strong></p>
+  <ol>
+    <li><strong>Deploy New Revision (Green):</strong>
+      <pre><code class="lang-bash">gcloud run deploy ${SERVICE_NAME} \
+  -<span class="ruby">-image ${IMAGE_NAME_NEW_VERSION} \
+</span>  -<span class="ruby">-platform managed \
+</span>  -<span class="ruby">-region ${REGION} \
+</span>  -<span class="ruby">-no-traffic <span class="hljs-comment"># Deploy new version without routing traffic yet</span></span>
+</code></pre>
+      <ul>
+        <li>This creates a new revision (e.g., <code>my-app-00002</code>). The old revision (e.g., <code>my-app-00001</code>) continues to serve 100% of traffic.</li>
+      </ul>
+    </li>
+    <li><strong>Monitor New Revision:</strong>
+      <ul>
+        <li>Wait for the new revision to pass its startup and liveness probes.</li>
+        <li>Optionally, use a specific URL for the new revision (e.g., <code>https://my-app-00002-xyz.run.app</code>) to perform manual smoke tests or integration tests.</li>
+      </ul>
+    </li>
+    <li><strong>Switch Traffic (Instant Cutover):</strong>
+      <pre><code class="lang-bash">gcloud <span class="hljs-keyword">run</span><span class="bash"> services update-traffic <span class="hljs-variable">${SERVICE_NAME}</span> \
+  --region <span class="hljs-variable">${REGION}</span> \
+  --to-latest <span class="hljs-comment"># Route 100% traffic to the latest (new) revision</span></span>
+</code></pre>
+      <ul>
+        <li>Cloud Run will instantly route all new incoming requests to the new revision. The old revision will remain running for a short grace period to drain any in-flight requests before scaling down.</li>
+      </ul>
+    </li>
+  </ol>
+
+  <p><strong>Option B: Canary Deployment (Gradual Rollout)</strong></p>
+  <ol>
+    <li><strong>Deploy New Revision (Canary):</strong>
+      <pre><code class="lang-bash">gcloud run deploy ${SERVICE_NAME} \
+  -<span class="ruby">-image ${IMAGE_NAME_NEW_VERSION} \
+</span>  -<span class="ruby">-platform managed \
+</span>  -<span class="ruby">-region ${REGION} \
+</span>  -<span class="ruby">-no-traffic <span class="hljs-comment"># Deploy new version without routing traffic initially</span></span>
+</code></pre>
+    </li>
+    <li><strong>Route Small Percentage of Traffic:</strong>
+      <ul>
+        <li>Get the name of your new revision (e.g., <code>my-app-00002</code>).</li>
+        <li>Route a small percentage of traffic (e.g., 5%) to the new revision, keeping the rest on the old one.</li>
+        <pre><code class="lang-bash"><span class="hljs-comment"># Replace REVISION_OLD and REVISION_NEW with actual revision names</span>
+gcloud <span class="hljs-keyword">run</span><span class="bash"> services update-traffic <span class="hljs-variable">${SERVICE_NAME}</span> \
+--region <span class="hljs-variable">${REGION}</span> \
+--to-revisions <span class="hljs-variable">${REVISION_NEW}</span>=5,<span class="hljs-variable">${REVISION_OLD}</span>=95</span>
+</code></pre>
+      </ul>
+    </li>
+    <li><strong>Monitor Closely:</strong>
+      <ul>
+        <li>Monitor logs (Cloud Logging), metrics (Cloud Monitoring - latency, error rates, CPU utilization) for the new revision.</li>
+        <li>Collect user feedback.</li>
+      </ul>
+    </li>
+    <li><strong>Gradually Increase Traffic (Iterate):</strong>
+      <ul>
+        <li>If the canary performs well, gradually increase the traffic percentage to the new revision (e.g., 20%, 50%, 80%). You can do this repeatedly by updating the traffic split.</li>
+        <pre><code class="lang-bash">gcloud <span class="hljs-keyword">run</span><span class="bash"> services update-traffic <span class="hljs-variable">${SERVICE_NAME}</span> \
+--region <span class="hljs-variable">${REGION}</span> \
+--to-revisions <span class="hljs-variable">${REVISION_NEW}</span>=20,<span class="hljs-variable">${REVISION_OLD}</span>=80</span>
+</code></pre>
+      </ul>
+    </li>
+    <li><strong>Full Rollout:</strong>
+      <ul>
+        <li>Once confident, route 100% of traffic to the new revision.</li>
+        <pre><code class="lang-bash">gcloud <span class="hljs-keyword">run</span><span class="bash"> services update-traffic <span class="hljs-variable">${SERVICE_NAME}</span> \
+--region <span class="hljs-variable">${REGION}</span> \
+--to-latest</span>
+</code></pre>
+      </ul>
+    </li>
+  </ol>
+
+  <h4 id="step-7-rollback-if-issues-arise-">Step 7: Rollback (If Issues Arise)</h4>
+  <ul>
+    <li><p>If you detect issues with a new revision during a blue/green or canary deployment, you can instantly roll back to a previous stable revision by updating traffic.</p>
+      <pre><code class="lang-bash"><span class="hljs-comment"># Route 100% traffic back to the old stable revision</span>
+gcloud <span class="hljs-keyword">run</span><span class="bash"> services update-traffic <span class="hljs-variable">${SERVICE_NAME}</span> \
+  --region <span class="hljs-variable">${REGION}</span> \
+  --to-revisions <span class="hljs-variable">${REVISION_OLD_STABLE}</span>=100</span>
+</code></pre>
+    </li>
+  </ul>
+
+  <h4 id="step-8-configure-minimum-instances-optional-for-cold-starts-">Step 8: Configure Minimum Instances (Optional, for Cold Starts)</h4>
+  <ul>
+    <li><p>If your application is sensitive to cold starts, set a minimum number of instances to keep warm. Be aware this incurs cost even when idle.</p>
+      <pre><code class="lang-bash">gcloud <span class="hljs-keyword">run</span><span class="bash"> services update <span class="hljs-variable">${SERVICE_NAME}</span> \
+  --region <span class="hljs-variable">${REGION}</span> \
+  --min-instances=1 <span class="hljs-comment"># Keep at least 1 instance warm</span></span>
+</code></pre>
+    </li>
+  </ul>
+
+  <h3 id="key-considerations-for-zero-loss-and-minimal-downtime">Key Considerations for Zero-Loss and Minimal-Downtime</h3>
+  <ul>
+    <li><strong>Database Migrations:</strong> This is often the trickiest part.
+      <ul>
+        <li><strong>Backward Compatibility:</strong> Ensure your new application version is backward compatible with the old database schema.</li>
+        <li><strong>Idempotent Migrations:</strong> Database migrations should be idempotent (running them multiple times has the same effect as running them once).</li>
+        <li><strong>Phased Migrations:</strong> For breaking changes, consider a multi-phase deployment:
+          <ol>
+            <li>Deploy a version that supports both old and new schema.</li>
+            <li>Run a migration to update the database.</li>
+            <li>Deploy a version that only uses the new schema.</li>
+          </ol>
+        </li>
+      </ul>
+    </li>
+    <li><strong>Session Management:</strong> Avoid sticky sessions if possible. If using sessions, ensure they are externalized (e.g., Redis, Memorystore) and compatible across old and new revisions.</li>
+    <li><strong>External Dependencies:</strong> Ensure all external services (APIs, message queues) are robust and can handle traffic shifts.</li>
+    <li><strong>Monitoring and Alerting:</strong> Implement comprehensive monitoring (Cloud Monitoring, custom metrics) for latency, error rates, and resource utilization. Set up alerts to detect anomalies immediately after a deployment.</li>
+    <li><strong>Logging:</strong> Centralized logging (Cloud Logging) is crucial for debugging issues quickly.</li>
+    <li><strong>CI/CD Pipeline:</strong> Automate these deployment steps using CI/CD tools like Cloud Build, GitHub Actions, GitLab CI, Jenkins, etc. This ensures consistency and reduces human error.</li>
+    <li><strong>Testing:</strong> Thoroughly test your new revision in a staging environment before routing live traffic. Automated integration and end-to-end tests are invaluable.</li>
+  </ul>
+
+  <div class="mermaid" style="width: 100%;">
+flowchart LR
+    subgraph "Zero-Loss Deployment Checklist"
+        DESIGN[✓ Design for Cloud Run<br/>Stateless + PORT + SIGTERM]
+        CONTAINER[✓ Containerize<br/>Minimal base image]
+        BUILD[✓ Build & Push<br/>Artifact Registry]
+        DEPLOY[✓ Initial Deploy<br/>--no-traffic]
+        HEALTH[✓ Health Checks<br/>/healthz endpoint]
+        TRAFFIC[✓ Traffic Management<br/>Blue/Green or Canary]
+        ROLLBACK[✓ Rollback Plan<br/>Instant reversion]
+        MIN_INST[✓ Min Instances<br/>Cold start prevention]
+    end
+    
+    subgraph "Critical Success Factors"
+        DB_MIG[Database Migrations<br/>Backward compatibility]
+        SESSIONS[Session Management<br/>Externalized sessions]
+        MONITOR[Monitoring & Alerting<br/>Real-time metrics]
+        TESTING[Thorough Testing<br/>Staging environment]
+    end
+    
+    classDef checklistNode fill:#e8f5e8,stroke:#388e3c,stroke-width:2px
+    classDef criticalNode fill:#fff3e0,stroke:#f57c00,stroke-width:2px
+    
+    class DESIGN,CONTAINER,BUILD,DEPLOY,HEALTH,TRAFFIC,ROLLBACK,MIN_INST checklistNode
+    class DB_MIG,SESSIONS,MONITOR,TESTING criticalNode
+</div>
+
+  <p>By leveraging Cloud Run's native features and following these best practices, you can confidently deploy updates to your services with virtually no impact on your users, achieving true zero-loss and minimal-downtime operations.</p>
+
+  <div class="watermark">Vishal Patil</div>
+</body>
+</html>

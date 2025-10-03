@@ -8,6 +8,8 @@
       <link rel="stylesheet" href="styles.css">
 </head>
 <body class="markdown-body">
+  <!-- Theme Toggle Button -->
+  <button class="theme-toggle" onclick="toggleTheme()">Toggle Theme</button>
   <h1>Does Communication Using REST API Involve Security Certificate?</h1>
   <div class="summary-block">
     This page covers why REST APIs require security certificates (HTTPS), how certificates are used for server and client authentication, and best practices for using Google Cloud's managed certificate services in GCP projects.
@@ -164,5 +166,77 @@
   <p>For the vast majority of new applications and services on GCP that require HTTPS, using Google-managed certificates via Certificate Manager is the default and best practice.</p>
 
   <div class="watermark">Vishal Patil</div>
+
+  <script>
+    // Theme Management Script
+    (function() {
+      // Function to load CSS dynamically
+      function loadCSS(href, id) {
+        // Remove existing CSS if it exists
+        const existingCSS = document.getElementById(id);
+        if (existingCSS) {
+          existingCSS.remove();
+        }
+        
+        // Create new link element
+        const link = document.createElement('link');
+        link.rel = 'stylesheet';
+        link.type = 'text/css';
+        link.href = href;
+        link.id = id;
+        document.head.appendChild(link);
+      }
+      
+      // Check for saved theme preference or default to 'light'
+      const currentTheme = localStorage.getItem('theme') || 'light';
+      
+      // Apply the saved theme
+      document.documentElement.setAttribute('data-theme', currentTheme);
+      
+      // Load appropriate CSS based on theme
+      if (currentTheme === 'dark') {
+        loadCSS('https://cdnjs.cloudflare.com/ajax/libs/github-markdown-css/5.2.0/github-markdown-dark.min.css', 'github-markdown-css');
+      } else {
+        loadCSS('https://cdnjs.cloudflare.com/ajax/libs/github-markdown-css/5.2.0/github-markdown-light.min.css', 'github-markdown-css');
+      }
+      
+      // Theme toggle function
+      window.toggleTheme = function() {
+        const currentTheme = document.documentElement.getAttribute('data-theme');
+        const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+        
+        // Update the theme
+        document.documentElement.setAttribute('data-theme', newTheme);
+        
+        // Save the preference
+        localStorage.setItem('theme', newTheme);
+        
+        // Load appropriate CSS
+        if (newTheme === 'dark') {
+          loadCSS('https://cdnjs.cloudflare.com/ajax/libs/github-markdown-css/5.2.0/github-markdown-dark.min.css', 'github-markdown-css');
+        } else {
+          loadCSS('https://cdnjs.cloudflare.com/ajax/libs/github-markdown-css/5.2.0/github-markdown-light.min.css', 'github-markdown-css');
+        }
+        
+        // Update Mermaid diagrams if they exist
+        if (typeof mermaid !== 'undefined') {
+          mermaid.initialize({ 
+            startOnLoad: false,
+            theme: newTheme === 'dark' ? 'dark' : 'default'
+          });
+          // Re-render all mermaid diagrams
+          mermaid.init();
+        }
+      };
+      
+      // Initialize Mermaid with correct theme
+      if (typeof mermaid !== 'undefined') {
+        mermaid.initialize({ 
+          startOnLoad: true,
+          theme: currentTheme === 'dark' ? 'dark' : 'default'
+        });
+      }
+    })();
+  </script>
 </body>
 </html>

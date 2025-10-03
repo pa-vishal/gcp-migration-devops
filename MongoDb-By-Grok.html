@@ -89,6 +89,8 @@
     </style>
 </head>
 <body>
+  <!-- Theme Toggle Button -->
+  <button class="theme-toggle" onclick="toggleTheme()">Toggle Theme</button>
     <h1>MongoDB Mastery: A Theoretical Guide and Cheatsheet for Production-Grade Cloud-Native Applications</h1>
     
 <p>This guide is structured as a mini-book, providing theoretical knowledge on MongoDB to help you design, build, and deploy complex cloud-native applications. It covers key concepts, best practices, and decision-making frameworks, drawing from official documentation and industry insights. Refer to it as a cheatsheet for quick lookups, with tables for comparisons and enumerations. By the end, you'll be equipped to evaluate use cases, design schemas, select deployments, and ensure observability in production.</p>
@@ -372,6 +374,78 @@
 <div class="chapter conclusion">
     <h2>Conclusion: Becoming a MongoDB Expert</h2>
     <p>This guide equips you with theoretical foundations to make informed decisions. Practice by building prototypes, reviewing official docs, and simulating production loads. For hands-on, explore MongoDB University courses. Remember: Success lies in aligning MongoDB's strengths with your app's needs while monitoring trade-offs.</p>
-</div></body>
+</div>
+  <script>
+    // Theme Management Script
+    (function() {
+      // Function to load CSS dynamically
+      function loadCSS(href, id) {
+        // Remove existing CSS if it exists
+        const existingCSS = document.getElementById(id);
+        if (existingCSS) {
+          existingCSS.remove();
+        }
+        
+        // Create new link element
+        const link = document.createElement('link');
+        link.rel = 'stylesheet';
+        link.type = 'text/css';
+        link.href = href;
+        link.id = id;
+        document.head.appendChild(link);
+      }
+      
+      // Check for saved theme preference or default to 'light'
+      const currentTheme = localStorage.getItem('theme') || 'light';
+      
+      // Apply the saved theme
+      document.documentElement.setAttribute('data-theme', currentTheme);
+      
+      // Load appropriate CSS based on theme
+      if (currentTheme === 'dark') {
+        loadCSS('https://cdnjs.cloudflare.com/ajax/libs/github-markdown-css/5.2.0/github-markdown-dark.min.css', 'github-markdown-css');
+      } else {
+        loadCSS('https://cdnjs.cloudflare.com/ajax/libs/github-markdown-css/5.2.0/github-markdown-light.min.css', 'github-markdown-css');
+      }
+      
+      // Theme toggle function
+      window.toggleTheme = function() {
+        const currentTheme = document.documentElement.getAttribute('data-theme');
+        const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+        
+        // Update the theme
+        document.documentElement.setAttribute('data-theme', newTheme);
+        
+        // Save the preference
+        localStorage.setItem('theme', newTheme);
+        
+        // Load appropriate CSS
+        if (newTheme === 'dark') {
+          loadCSS('https://cdnjs.cloudflare.com/ajax/libs/github-markdown-css/5.2.0/github-markdown-dark.min.css', 'github-markdown-css');
+        } else {
+          loadCSS('https://cdnjs.cloudflare.com/ajax/libs/github-markdown-css/5.2.0/github-markdown-light.min.css', 'github-markdown-css');
+        }
+        
+        // Update Mermaid diagrams if they exist
+        if (typeof mermaid !== 'undefined') {
+          mermaid.initialize({ 
+            startOnLoad: false,
+            theme: newTheme === 'dark' ? 'dark' : 'default'
+          });
+          // Re-render all mermaid diagrams
+          mermaid.init();
+        }
+      };
+      
+      // Initialize Mermaid with correct theme
+      if (typeof mermaid !== 'undefined') {
+        mermaid.initialize({ 
+          startOnLoad: true,
+          theme: currentTheme === 'dark' ? 'dark' : 'default'
+        });
+      }
+    })();
+  </script>
+</body>
 </html>
 

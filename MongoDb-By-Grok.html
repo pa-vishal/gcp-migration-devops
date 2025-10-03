@@ -4,99 +4,18 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MongoDB Mastery: A Theoretical Guide and Cheatsheet</title>
-    <style>
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            line-height: 1.6;
-            margin: 0;
-            padding: 20px;
-            background-color: #f9f9f9;
-            color: #333;
-            max-width: 1200px;
-            margin: 0 auto;
-        }
-        h1 {
-            color: #47a447; /* MongoDB green */
-            text-align: center;
-            border-bottom: 2px solid #47a447;
-            padding-bottom: 10px;
-            margin-bottom: 30px;
-        }
-        h2 {
-            color: #47a447;
-            border-left: 5px solid #47a447;
-            padding-left: 10px;
-            margin-top: 40px;
-        }
-        h3 {
-            color: #333;
-            margin-top: 20px;
-        }
-        p {
-            margin-bottom: 15px;
-        }
-        strong {
-            color: #47a447;
-        }
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin: 20px 0;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-        }
-        th, td {
-            border: 1px solid #ddd;
-            padding: 12px;
-            text-align: left;
-        }
-        th {
-            background-color: #47a447;
-            color: white;
-            font-weight: bold;
-        }
-        tr:nth-child(even) {
-            background-color: #f2f2f2;
-        }
-        tr:hover {
-            background-color: #e0f7e0;
-        }
-        ul, ol {
-            margin-left: 25px;
-            margin-bottom: 15px;
-        }
-        li {
-            margin-bottom: 5px;
-        }
-        .chapter {
-            background-color: white;
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-            margin-bottom: 30px;
-        }
-        .conclusion {
-            text-align: center;
-            font-style: italic;
-            color: #666;
-        }
-        a {
-            color: #47a447;
-            text-decoration: none;
-        }
-        a:hover {
-            text-decoration: underline;
-        }
-    </style>
+    <link rel="stylesheet" href="styles.css">
 </head>
-<body>
+<body class="markdown-body">
   <!-- Theme Toggle Button -->
   <button class="theme-toggle" onclick="toggleTheme()">Toggle Theme</button>
     <h1>MongoDB Mastery: A Theoretical Guide and Cheatsheet for Production-Grade Cloud-Native Applications</h1>
     
-<p>This guide is structured as a mini-book, providing theoretical knowledge on MongoDB to help you design, build, and deploy complex cloud-native applications. It covers key concepts, best practices, and decision-making frameworks, drawing from official documentation and industry insights. Refer to it as a cheatsheet for quick lookups, with tables for comparisons and enumerations. By the end, you'll be equipped to evaluate use cases, design schemas, select deployments, and ensure observability in production.</p>
+    <div class="summary-block">
+        <p>This guide is structured as a mini-book, providing theoretical knowledge on MongoDB to help you design, build, and deploy complex cloud-native applications. It covers key concepts, best practices, and decision-making frameworks, drawing from official documentation and industry insights. Refer to it as a cheatsheet for quick lookups, with tables for comparisons and enumerations. By the end, you'll be equipped to evaluate use cases, design schemas, select deployments, and ensure observability in production.</p>
+    </div>
 
-<div class="chapter">
-    <h2>Chapter 1: Understanding MongoDB and Deciding Use Cases</h2>
+<h2>Chapter 1: Understanding MongoDB and Deciding Use Cases</h2>
     <p>MongoDB is a document-oriented NoSQL database that stores data in flexible, JSON-like BSON documents. Its schema-less design, horizontal scalability via sharding, and built-in replication make it ideal for handling unstructured or semi-structured data in dynamic environments. Key strengths include high availability, ACID transactions (since v4.0), and support for multi-document operations.</p>
 
     <h3>When to Choose MongoDB: Decision Framework</h3>
@@ -169,10 +88,8 @@
     </table>
 
     <p><strong>Trade-offs in Use Cases</strong>: MongoDB's flexibility trades off with potential data duplication in denormalized models. For cloud-native apps, it pairs well with Kubernetes for orchestration, but requires careful indexing to avoid performance bottlenecks. Gartner predicts 95% of new workloads will be cloud-native by 2025, amplifying MongoDB's relevance.</p>
-</div>
 
-<div class="chapter">
-    <h2>Chapter 2: Designing Correct Schemas</h2>
+<h2>Chapter 2: Designing Correct Schemas</h2>
     <p>Schema design in MongoDB is application-driven, focusing on query patterns rather than normalization. The goal is to balance read/write performance, data consistency, and scalability.</p>
 
     <h3>Core Principles</h3>
@@ -249,10 +166,8 @@
     </ol>
 
     <p><strong>Trade-offs</strong>: Denormalization boosts reads but complicates writes; always align with app needs.</p>
-</div>
 
-<div class="chapter">
-    <h2>Chapter 3: Choosing MongoDB Deployment Configurations in Cloud Platforms (GCP Focus)</h2>
+<h2>Chapter 3: Choosing MongoDB Deployment Configurations in Cloud Platforms (GCP Focus)</h2>
     <p>For cloud-native apps, MongoDB Atlas is the managed service of choice, abstracting infrastructure management. On GCP, it leverages Compute Engine, VPC, and other services for low-latency, secure deployments.</p>
 
     <h3>Deployment Types</h3>
@@ -305,10 +220,8 @@
     </ul>
 
     <p><strong>Trade-offs</strong>: Managed Atlas reduces ops overhead but incurs costs; self-managed on GCP VMs offers customization but requires manual scaling.</p>
-</div>
 
-<div class="chapter">
-    <h2>Chapter 4: Monitoring MongoDB in Production for SRE and Observability</h2>
+<h2>Chapter 4: Monitoring MongoDB in Production for SRE and Observability</h2>
     <p>Observability ensures reliability by tracking metrics, logs, and traces. For SRE, focus on SLIs/SLOs (e.g., 99.9% uptime) and golden signals (latency, traffic, errors, saturation).</p>
 
     <h3>Key Monitoring Tools and Metrics</h3>
@@ -369,12 +282,12 @@
     </ul>
 
     <p><strong>Trade-offs</strong>: Comprehensive monitoring adds overhead; prioritize critical metrics to avoid alert fatigue.</p>
-</div>
 
-<div class="chapter conclusion">
-    <h2>Conclusion: Becoming a MongoDB Expert</h2>
+<h2>Conclusion: Becoming a MongoDB Expert</h2>
     <p>This guide equips you with theoretical foundations to make informed decisions. Practice by building prototypes, reviewing official docs, and simulating production loads. For hands-on, explore MongoDB University courses. Remember: Success lies in aligning MongoDB's strengths with your app's needs while monitoring trade-offs.</p>
 </div>
+  <div class="watermark">Vishal Patil</div>
+
   <script>
     // Theme Management Script
     (function() {
